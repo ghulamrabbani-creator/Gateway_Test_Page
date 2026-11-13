@@ -22,6 +22,7 @@ export default async function OrderPage({ params }) {
       <p><Link href="/orders">← Orders</Link></p>
       <h1 className="mono">{row.ref}</h1>
       <p className="sub">{row.currency} {Number(row.amount).toFixed(2)} · {row.operation === 'Pay' ? 'Sale' : 'Pre-authorization'} · {row.env} · created {new Date(row.created_at).toLocaleString()} by {row.created_by}</p>
+      {row.options?.external && <div className="msg warn">Imported with Order lookup: this order was not created by this shop{row.options.importedFrom ? ` (its callback goes to ${row.options.importedFrom})` : ''}. Actions here still act on the real order.</div>}
       <div className="grid g2">
         <div className="card">
           <h2>Summary</h2>

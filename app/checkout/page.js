@@ -24,6 +24,7 @@ export default function Checkout() {
   const [customAmount, setCustomAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [dropin, setDropin] = useState(false);
 
   const lines = Object.entries(cart.items).filter(([, q]) => q > 0).map(([id, q]) => ({ p: PRODUCTS.find((x) => x.id === id), q })).filter((l) => l.p);
   const total = lines.reduce((a, l) => a + l.p.price * l.q, 0);
@@ -45,7 +46,15 @@ export default function Checkout() {
       if (j.mode === 'redirect') { window.location.href = j.hppUrl; return; }
       await loadScript(j.sdkUrl);
       const payment = new window.GeideaCheckout((d) => go('success', d), (d) => go('error', d), (d) => go('cancel', d));
-      payment.startPayment(j.sessionId);
+      if (j.mode === 'dropin') {
+        // Drop-in renders inside our page: startPayment(sessionId, null, containerId) — per the HPP integration code BESO shows
+        setDropin(true);
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        document.getElementById('gd-dropin')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        payment.startPayment(j.sessionId, null, 'gd-dropin');
+      } else {
+        payment.startPayment(j.sessionId);
+      }
       setBusy(false);
     } catch (e) {
       setErr({ error: e.message });
@@ -91,6 +100,12 @@ export default function Checkout() {
           )}
         </div>
       </div>
+      {dropin && (
+        <div className="card">
+          <h2>Payment (drop-in)</h2>
+          <div id="gd-dropin" style={{ width: '100%', maxWidth: 460, minHeight: 400, margin: '0 auto' }} />
+        </div>
+      )}
     </div>
   );
 }
