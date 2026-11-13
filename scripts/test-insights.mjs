@@ -69,4 +69,15 @@ assert.equal(tokenPaySignature('PK', 'SID', 'PWD'), hm('PKSID', 'PWD'));
 assert.equal(geideaTimestamp(new Date(Date.UTC(2026, 10, 10, 14, 59, 0))), '11/10/2026 02:59:00 PM');
 assert.equal(geideaTimestamp(new Date(Date.UTC(2026, 0, 2, 0, 5, 9))), '01/02/2026 12:05:09 AM');
 
+// 7. Summary record from fetch-by-reference (real response 13-Nov-2026): no false "no 3DS / merchant liable"; USD settlement flagged
+const summary = { status: 'Success', detailedStatus: 'Paid', currency: 'AED', amount: 1, transactions: [], paymentMethod: null, threeDSecureId: '4b3a', initiatedBy: 'Internet', totalAuthorizedAmount: 0,
+  multiCurrency: { authAmount: 1, authCurrency: 'AED', exchangeRate: 0.272294, settleAmount: 0.27, settleCurrency: 'USD', exchangeFeeAmount: 0 } };
+ins = orderInsights(summary);
+assert.equal(pick(ins, 'auth').value, 'Not in this response');
+assert.ok(!pick(ins, 'liability'));
+assert.equal(pick(ins, 'summary').value, 'Summary record only');
+assert.match(pick(ins, 'settle').value, /USD/);
+assert.equal(pick(ins, 'credential').value, 'Not in this response');
+assert.match(pick(responseInsights({ status: 200, res_body: { responseCode: '110', detailedResponseCode: '013' } }), 'code').value, /billing address/);
+
 console.log('All insights and signature checks passed');

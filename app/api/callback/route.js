@@ -11,17 +11,22 @@ export async function POST(req) {
   let payload = null;
   try {
     const text = await req.text();
+    console.log('Geidea callback received', text.length, 'bytes');
     try { payload = JSON.parse(text); } catch { payload = { raw: text.slice(0, 20000) }; }
     const order = extractOrder(payload);
     const ref = order?.merchantReferenceId || payload?.merchantReferenceId || null;
     const fingerprint = JSON.stringify([order?.orderId, order?.status, order?.detailedStatus, order?.transactions?.length, order?.totalCapturedAmount, order?.totalRefundedAmount, order?.tokenId]);
     const dedupe = crypto.createHash('sha256').update(order ? fingerprint : JSON.stringify(payload)).digest('hex');
 
+    // Every arrival also goes to the request inspector of its order (even repeats), so delivery can be checked
+    await db().from('api_logs').insert({ order_ref: ref, action: 'Callback received (Geidea → shop)', method: 'POST', url: '/api/callback', req_headers: Object.fromEntries([...req.headers].filter(([k]) => !/cookie|authorization/i.test(k))), status: 200, res_body: payload, duration_ms: 0, created_by: 'geidea' });
+
     const { data: existing } = await db().from('callbacks').select('id,duplicate_count').eq('dedupe_key', dedupe).maybeSingle();
     if (existing) {
       await db().from('callbacks').update({ duplicate_count: existing.duplicate_count + 1, last_seen_at: new Date().toISOString() }).eq('id', existing.id);
     } else {
-      await db().from('callbacks').insert({ order_ref: ref, geidea_order_id: order?.orderId || null, status: order ? `${order.status}/${order.detailedStatus}` : 'unparsed', amount: order?.amount ?? null, currency: order?.currency || null, payload, dedupe_key: dedupe });
+      const ins = await db().from('callbacks').insert({ order_ref: ref, geidea_order_id: order?.orderId || null, status: order ? `${order.status}/${order.detailedStatus}` : 'unparsed', amount: order?.amount ?? null, currency: order?.currency || null, payload, dedupe_key: dedupe });
+      if (ins.error) console.error('callback insert failed', ins.error);
       if (ref && order) await syncOrder(ref, order);
     }
   } catch (e) {

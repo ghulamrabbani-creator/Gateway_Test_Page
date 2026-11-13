@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
-import { getOrderRow, refreshFromGeidea } from '@/lib/orders';
+import { getOrderRow, refreshFromGeidea, logBrowser } from '@/lib/orders';
 import { orderInsights } from '@/lib/insights';
 import Insights from '@/components/Insights';
 
@@ -11,6 +11,9 @@ export default async function Return({ searchParams }) {
   const ref = searchParams.ref;
   const row = ref && (await getOrderRow(ref));
   if (!row) return <div className="card"><h1>Order not found</h1><p className="sub">No order with reference {ref}.</p></div>;
+  // Redirect mode: Geidea appends the payment result to the return URL. Keep it for the inspector.
+  const extra = Object.fromEntries(Object.entries(searchParams).filter(([k]) => k !== 'ref' && k !== 'sdk'));
+  if (Object.keys(extra).length) await logBrowser(row.ref, 'Return redirect parameters', extra, user, 'Geidea HPP → returnUrl (browser redirect)');
   let order = null, fetchErr = null;
   try {
     ({ order } = await refreshFromGeidea(row, user));

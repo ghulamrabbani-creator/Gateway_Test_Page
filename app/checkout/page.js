@@ -36,10 +36,15 @@ export default function Checkout() {
       const r = await fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: cart.items, settings: s, customer: c, customAmount }) });
       const j = await r.json();
       if (!r.ok) { setErr(j); setBusy(false); return; }
-      const go = (outcome) => { window.location.href = `/return?ref=${encodeURIComponent(j.ref)}&sdk=${outcome}`; };
+      const go = async (outcome, data) => {
+        try {
+          await fetch('/api/checkout/result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: j.ref, outcome, data: data ?? null }) });
+        } catch {}
+        window.location.href = `/return?ref=${encodeURIComponent(j.ref)}&sdk=${outcome}`;
+      };
       if (j.mode === 'redirect') { window.location.href = j.hppUrl; return; }
       await loadScript(j.sdkUrl);
-      const payment = new window.GeideaCheckout(() => go('success'), () => go('error'), () => go('cancel'));
+      const payment = new window.GeideaCheckout((d) => go('success', d), (d) => go('error', d), (d) => go('cancel', d));
       payment.startPayment(j.sessionId);
       setBusy(false);
     } catch (e) {
