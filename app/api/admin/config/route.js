@@ -15,6 +15,8 @@ export async function POST(req) {
       }
     }
     for (const k of ['allowDemoOnProduction', 'offerMoto', 'merchantName', 'publicBaseUrl']) if (k in body) patch[k] = body[k];
+    if ('prodMaxAmount' in body) { const v = Number(body.prodMaxAmount); if (!(v >= 0)) throw new HttpError(400, 'Max amount must be a number'); patch.prodMaxAmount = v; }
+    if ('prodDailyPayments' in body) { const v = Math.floor(Number(body.prodDailyPayments)); if (!(v >= 0)) throw new HttpError(400, 'Daily limit must be a number'); patch.prodDailyPayments = v; }
     if ('currencies' in body) patch.currencies = String(body.currencies).split(',').map((c) => c.trim().toUpperCase()).filter((c) => /^[A-Z]{3}$/.test(c));
     if ('motoExtra' in body) {
       try { patch.motoExtra = body.motoExtra ? JSON.parse(body.motoExtra) : {}; } catch { throw new HttpError(400, 'MOTO extra fields must be valid JSON'); }

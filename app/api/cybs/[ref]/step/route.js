@@ -36,6 +36,7 @@ export async function POST(req, { params }) {
     const cof = cy.savedIi ? { type: 'customer', storedCredentialUsed: true } : saving ? { type: 'customer', credentialStoredOnFile: true } : undefined;
     const kind = row.operation === 'PreAuthorize' ? 'auth' : 'sale';
     const common = { env: row.env, row, funds, capture: row.operation !== 'PreAuthorize', cof, saveCard: saving, customer: row.customer, user };
+    const dm = s.cybsSkipDm ? ['DECISION_SKIP'] : [];
 
     if (step === 'setup') {
       const r = await authSetup(row.env, row, funds, user);
@@ -46,12 +47,12 @@ export async function POST(req, { params }) {
     let r;
     if (step === 'enrol') {
       const returnUrl = `${baseUrlFrom(req, await getConfig())}/api/cybs/3ds-return?ref=${encodeURIComponent(row.ref)}&n=${cy.nonce}`;
-      r = await payment({ ...common, actions: ['CONSUMER_AUTHENTICATION'], auth: { referenceId, returnUrl }, browser, ip: clientIp(req), action: '3DS enrolment + authorization' });
+      r = await payment({ ...common, actions: ['CONSUMER_AUTHENTICATION', ...dm], auth: { referenceId, returnUrl }, browser, ip: clientIp(req), action: '3DS enrolment + authorization' });
     } else if (step === 'validate') {
       if (!cy.authTxnId) throw new HttpError(400, 'No authentication transaction ID from the challenge yet.');
-      r = await payment({ ...common, actions: ['VALIDATE_CONSUMER_AUTHENTICATION'], auth: { authenticationTransactionId: cy.authTxnId }, action: '3DS validation + authorization' });
+      r = await payment({ ...common, actions: ['VALIDATE_CONSUMER_AUTHENTICATION', ...dm], auth: { authenticationTransactionId: cy.authTxnId }, action: '3DS validation + authorization' });
     } else if (step === 'pay') {
-      r = await payment({ ...common, commerceIndicator: s.auth === 'moto' ? 'moto' : 'internet' });
+      r = await payment({ ...common, actions: dm, commerceIndicator: s.auth === 'moto' ? 'moto' : 'internet' });
     } else throw new HttpError(400, 'Unknown step');
 
     const updated = await recordTxn(row.ref, kind, r, row.amount);

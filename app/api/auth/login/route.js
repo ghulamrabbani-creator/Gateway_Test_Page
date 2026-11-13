@@ -3,7 +3,7 @@ import { login, errorResponse } from '@/lib/auth';
 export async function POST(req) {
   try {
     const { username, password } = await req.json();
-    const s = await login(username, password);
+    const s = await login(username, password, (req.headers.get('x-forwarded-for') || '').split(',')[0].trim());
     if (!s) return Response.json({ error: 'Wrong username or password' }, { status: 401 });
     return Response.json(s);
   } catch (e) {

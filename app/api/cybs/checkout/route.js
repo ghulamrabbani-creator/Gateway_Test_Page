@@ -1,6 +1,7 @@
 // CYBS direct, step 1: our order row + a Microform capture context (JWT). The browser loads Microform from the JWT's
 // client library, collects the card in CYBS-hosted fields and gets a transient token. Saved cards (TMS instrument
 // identifier) skip Microform.
+import { assertProdPayment } from '@/lib/guard';
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getConfig, baseUrlFrom } from '@/lib/config';
@@ -17,6 +18,7 @@ export async function POST(req) {
     const c = await cybsCreds(env);
     const amount = Math.round(Number(rawAmount) * 100) / 100;
     if (!(amount > 0)) throw new HttpError(400, 'Amount must be above zero.');
+    await assertProdPayment(env, amount);
     const ii = (settings.cybsIi || '').trim();
     const saveCard = settings.saveCard || 'none';
     const order = {

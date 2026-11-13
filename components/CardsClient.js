@@ -73,12 +73,17 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
     onChanged();
   }
   async function chargeMit() {
+    let confirmed = false;
+    if (t.env === 'production') {
+      confirmed = window.confirm(`Charge ${mit.currency} ${Number(mit.amount || 0).toFixed(2)} to ${t.card?.masked || 'this card'} without the customer?\n\nThis is Production: real money.`);
+      if (!confirmed) return;
+    }
     setBusy('mit'); setResult(null);
     const { ok, j } = isCybs
-      ? await post('/api/tokens/cybs-mit', { env: t.env, iiId: t.token_id, expiry: t.card?.expiry, ntid: t.agreement_id, amount: mit.amount, currency: mit.currency, operation: mit.operation, skipDm: mit.skipDm !== false })
+      ? await post('/api/tokens/cybs-mit', { confirmed, env: t.env, iiId: t.token_id, expiry: t.card?.expiry, ntid: t.agreement_id, amount: mit.amount, currency: mit.currency, operation: mit.operation, skipDm: mit.skipDm !== false })
       : isMpgs
-      ? await post('/api/tokens/mpgs-mit', { env: t.env, token: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit })
-      : await post('/api/tokens/mit', { env: t.env, tokenId: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit });
+      ? await post('/api/tokens/mpgs-mit', { confirmed, env: t.env, token: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit })
+      : await post('/api/tokens/mit', { confirmed, env: t.env, tokenId: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit });
     setBusy('');
     setResult(ok ? { ref: j.ref, insights: j.insights } : { error: j.error });
     onChanged();
@@ -170,7 +175,9 @@ export default function CardsClient({ tokens, pub }) {
     } catch (e) { setErr({ error: e.message }); } finally { setBusy(false); }
   }
   async function chargeManual() {
-    const { ok, j } = await post('/api/tokens/mit', { env: s.env, ...manual });
+    let confirmed = false;
+    if (s.env === 'production') { confirmed = window.confirm(`Charge ${manual.currency} ${Number(manual.amount || 0).toFixed(2)} to token ${manual.tokenId.slice(0, 8)}… without the customer?\n\nThis is Production: real money.`); if (!confirmed) return; }
+    const { ok, j } = await post('/api/tokens/mit', { confirmed, env: s.env, ...manual });
     setManualRes(ok ? { ref: j.ref, insights: j.insights } : { error: j.error });
     router.refresh();
   }

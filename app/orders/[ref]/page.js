@@ -58,7 +58,7 @@ export default async function OrderPage({ params }) {
         </div>
         <div className="card">
           <h2>Actions</h2>
-          <OrderActions gateway={cybs ? 'CYBS' : mpgs ? 'MPGS' : 'Geidea'} refId={row.ref} currency={row.currency} detailed={row.detailed_status} authorized={authorized} captured={captured} refunded={refunded} amount={Number(row.amount)} />
+          <OrderActions env={row.env} gateway={cybs ? 'CYBS' : mpgs ? 'MPGS' : 'Geidea'} refId={row.ref} currency={row.currency} detailed={row.detailed_status} authorized={authorized} captured={captured} refunded={refunded} amount={Number(row.amount)} />
         </div>
       </div>
       <div className="card">

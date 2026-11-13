@@ -1,5 +1,6 @@
 // MPGS direct, step 1: create our order row and an MPGS Hosted Session. The browser then loads session.js,
 // collects the card in MPGS-hosted iframes and updates the session; the card never touches this server.
+import { assertProdPayment } from '@/lib/guard';
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mpgsCreds, createSession, sessionJsUrl } from '@/lib/mpgs';
@@ -15,6 +16,7 @@ export async function POST(req) {
     const c = await mpgsCreds(env);
     const amount = Math.round(Number(rawAmount) * 100) / 100;
     if (!(amount > 0)) throw new HttpError(400, 'Amount must be above zero.');
+    await assertProdPayment(env, amount);
 
     const saveCard = settings.saveCard || 'none';
     const withAgreement = saveCard === 'mit' || saveCard === 'citmit';

@@ -1,3 +1,4 @@
+import { assertProdPayment, assertConfirmed } from '@/lib/guard';
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { getConfig, baseUrlFrom } from '@/lib/config';
 import { db } from '@/lib/db';
@@ -8,10 +9,12 @@ import { shortId } from '@/lib/crypto';
 export async function POST(req) {
   try {
     const user = requireUser();
-    const { env = 'test', tokenId, agreementId, agreementType = 'Unscheduled', amount, currency = 'AED', operation = 'Pay' } = await req.json();
+    const { env = 'test', tokenId, agreementId, agreementType = 'Unscheduled', amount, currency = 'AED', operation = 'Pay', confirmed } = await req.json();
     await assertEnvAllowed(user, env);
     if (!tokenId || !agreementId) throw new HttpError(400, 'Token ID and agreement ID are both needed for an MIT.');
     if (!(Number(amount) > 0)) throw new HttpError(400, 'Amount must be above zero.');
+    assertConfirmed(env, confirmed, 'A merchant-initiated charge');
+    await assertProdPayment(env, amount);
     const cfg = await getConfig();
     const order = { ref: `MIT-${shortId()}-${Math.floor(Date.now() / 1000)}`, env, operation: operation === 'PreAuthorize' ? 'PreAuthorize' : 'Pay', amount: Math.round(Number(amount) * 100) / 100, currency, token_id: tokenId, agreement_id: agreementId, agreement_type: agreementType, options: { mit: true, auth: 'none' }, created_by: user.user };
     await db().from('orders').insert(order);

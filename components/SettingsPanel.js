@@ -29,6 +29,11 @@ export default function SettingsPanel({ s, set, pub, role }) {
       <Seg value={s.env} onChange={up('env')} options={[['test', 'Test'], ['staging', 'Staging'], ['production', prodLocked ? 'Production (admin)' : 'Production', prodLocked]]} />
       <label className="f">Route</label>
       <Seg value={s.route || 'geidea'} onChange={up('route')} options={[['geidea', 'Geidea PGW'], ['mpgs', mpgsReady ? 'MPGS direct' : 'MPGS direct (set up in admin)', !mpgsReady], ['cybs', cybsReady ? 'CYBS direct' : 'CYBS direct (set up in admin)', !cybsReady]]} />
+      {cybs && (<>
+        <label className="f">Decision Manager (CYBS fraud screening)</label>
+        <Seg value={!!s.cybsSkipDm} onChange={up('cybsSkipDm')} options={[[false, 'Run'], [true, 'Skip (DECISION_SKIP)']]} />
+        <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>{s.cybsSkipDm ? 'Adds DECISION_SKIP to the action list, so Decision Manager does not screen the payment (needs the MID to allow it; it did for MITs on 11-Nov).' : 'Repeated test payments build velocity scores; DM rejected a CIT on 14-Nov (score 26, velocity and identity-change codes).'}</p>
+      </>)}
       {cybs && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>Card form is CYBS Microform (hosted fields, the PAN never reaches this shop). MID {pub.envs[s.env]?.cybs?.merchantId}. No PGW order is created, so PGW does not federate it to APEX.</p>}
       {mpgs && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>Card form is MPGS Hosted Session (fields served by Mastercard, the PAN never reaches this shop). MID {pub.envs[s.env]?.mpgs?.merchantId}. No PGW order is created, so PGW does not federate it to APEX.</p>}
       {!direct && (<>
@@ -112,6 +117,7 @@ export function SettingsChips({ s }) {
     [s.auth === 'moto' ? 'MOTO' : s.auth === 'none' ? 'No 3DS' : '3-D Secure', ''],
     [s.currency, ''],
   ];
+  if (cybs && s.cybsSkipDm) chips.push(['Decision Manager skipped', 'warn']);
   if (s.saveCard !== 'none') chips.push([`Save card for ${{ cit: 'CIT', mit: 'MIT', citmit: 'CIT + MIT' }[s.saveCard]}`, '']);
   if (cybs ? s.cybsIi : mpgs ? s.mpgsToken : s.tokenId) chips.push(['Paying with saved token', '']);
   return <div className="chips">{chips.map(([c, t]) => <span key={c} className={`pill ${t}`}>{c}</span>)}</div>;

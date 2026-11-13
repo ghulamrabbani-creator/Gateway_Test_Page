@@ -1,3 +1,4 @@
+import { assertProdPayment } from '@/lib/guard';
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { getConfig, baseUrlFrom } from '@/lib/config';
 import { db } from '@/lib/db';
@@ -19,6 +20,7 @@ export async function POST(req) {
     if (customAmount !== undefined && customAmount !== '' && customAmount !== null) amount = Number(customAmount);
     if (!(amount > 0)) throw new HttpError(400, 'Cart is empty (or the custom amount is not above zero).');
     amount = Math.round(amount * 100) / 100;
+    await assertProdPayment(env, amount);
 
     const saveCard = settings.saveCard || 'none';
     const order = {

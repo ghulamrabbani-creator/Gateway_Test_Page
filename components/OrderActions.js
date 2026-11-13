@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function OrderActions({ gateway = 'Geidea', refId, currency, detailed, authorized, captured, refunded, amount }) {
+export default function OrderActions({ env, gateway = 'Geidea', refId, currency, detailed, authorized, captured, refunded, amount }) {
   const router = useRouter();
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(null);
@@ -10,8 +10,13 @@ export default function OrderActions({ gateway = 'Geidea', refId, currency, deta
   const [refAmt, setRefAmt] = useState((captured - refunded || 0).toFixed(2));
 
   async function act(type, amt) {
+    let confirmed = false;
+    if (env === 'production' && (type === 'refund' || type === 'void')) {
+      confirmed = window.confirm(`${type === 'refund' ? `Refund ${currency} ${Number(amt).toFixed(2)}` : 'Void'} on ${refId}?\n\nThis is Production: real money on ${gateway}.`);
+      if (!confirmed) return;
+    }
     setBusy(type); setMsg(null);
-    const r = await fetch(`/api/orders/${encodeURIComponent(refId)}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, amount: amt }) });
+    const r = await fetch(`/api/orders/${encodeURIComponent(refId)}/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, amount: amt, confirmed }) });
     const j = await r.json().catch(() => ({}));
     setBusy('');
     setMsg(r.ok ? { tone: j.ok ? 'good' : 'bad', text: j.summary } : { tone: 'bad', text: j.error });

@@ -1,3 +1,4 @@
+import { assertProdAmount, assertConfirmed } from '@/lib/guard';
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { getConfig, baseUrlFrom } from '@/lib/config';
 import { getOrderRow, refreshFromGeidea } from '@/lib/orders';
@@ -63,7 +64,9 @@ export async function POST(req, { params }) {
     const row = await getOrderRow(decodeURIComponent(params.ref));
     if (!row) throw new HttpError(404, 'Order not found');
     await assertEnvAllowed(user, row.env);
-    const { type, amount } = await req.json();
+    const { type, amount, confirmed } = await req.json();
+    if (type === 'capture') await assertProdAmount(row.env, amount);
+    if (type === 'refund' || type === 'void') assertConfirmed(row.env, confirmed, type === 'refund' ? 'A refund' : 'A void');
     if (row.route === 'mpgs') return Response.json(await mpgsAction(row, type, amount, user));
     if (row.route === 'cybs') return Response.json(await cybsAction(row, type, amount, user));
     const baseUrl = baseUrlFrom(req, await getConfig());
