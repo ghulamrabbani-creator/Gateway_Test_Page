@@ -92,4 +92,11 @@ assert.match(pick(ins, 'processor').note, /GEIDEA_UAE_S2I/);
 assert.equal(pick(ins, 'cvv').value, 'CVV matched');
 assert.equal(pick(ins, 'liability').value, 'Shifted to issuer');
 
+// 9. Refunded order: processor/RRN must come from the Pay transaction, not the Refund
+const refunded = { ...mpgs, detailedStatus: 'Refunded', transactions: [...mpgs.transactions, { type: 'Refund', status: 'Success', providerType: null, rrn: '631717006147', acquirer: { id: 'GEIDEA_UAE_S2I' }, codes: { responseCode: '000' } }] };
+ins = orderInsights(refunded);
+assert.equal(pick(ins, 'processor').value, 'MPGS');
+assert.match(pick(ins, 'processor').note, /631716008197/);
+assert.ok(!pick(ins, 'decline'));
+
 console.log('All insights and signature checks passed');
