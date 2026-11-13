@@ -20,7 +20,7 @@ function loadScript(src) {
 export default function Checkout() {
   const [s] = useSettings();
   const [cart, setCart] = useCart();
-  const [c, setC] = useState({ firstName: 'Test', lastName: 'Customer', email: 'test@example.com', phone: '', phoneCountryCode: '+971', city: 'Dubai', street: '' });
+  const [c, setC] = useState({ firstName: 'Ghulam', lastName: 'Rabbani', email: 'test@example.com', phone: '562186147', phoneCountryCode: '+971', city: 'Dubai', street: 'Al Barsha' });
   const [customAmount, setCustomAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);

@@ -54,7 +54,7 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
               {[['apiBase', 'API base URL'], ['sdkUrl', 'Checkout SDK script'], ['hppUrl', 'HPP redirect URL ({sessionId})']].map(([k, l]) => (
                 <div key={k}><label className="f">{l}</label><input value={envs[e][k]} onChange={(ev) => setEnvs({ ...envs, [e]: { ...envs[e], [k]: ev.target.value } })} /></div>
               ))}
-              {e === 'staging' && <p className="muted" style={{ fontSize: 12 }}>Staging SDK and HPP hosts are a guess. Confirm with PGW engineering.</p>}
+              {e === 'staging' && <p className="muted" style={{ fontSize: 12 }}>Staging HPP base comes from Geidea's checkout script (www.staging.geidea.ae/hpp); the staging SDK path is assumed to follow it.</p>}
             </div>
           ))}
         </div>
