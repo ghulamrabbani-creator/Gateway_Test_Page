@@ -11,7 +11,7 @@ export async function POST(req) {
       patch.envs = {};
       for (const e of ENVS) if (body.envs[e]) {
         const m = body.envs[e].mpgs || {};
-        patch.envs[e] = { apiBase: body.envs[e].apiBase, sdkUrl: body.envs[e].sdkUrl, hppUrl: body.envs[e].hppUrl, mpgs: { baseUrl: (m.baseUrl || '').trim().replace(/\/$/, ''), version: String(m.version || '80').trim(), merchantId: (m.merchantId || '').trim(), tokenMode: m.tokenMode === 'gateway' ? 'gateway' : 'merchant' }, cybs: { host: String(body.envs[e].cybs?.host || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, ''), merchantId: String(body.envs[e].cybs?.merchantId || '').trim() } };
+        patch.envs[e] = { apiBase: body.envs[e].apiBase, sdkUrl: body.envs[e].sdkUrl, hppUrl: body.envs[e].hppUrl, mpgs: { baseUrl: (m.baseUrl || '').trim().replace(/\/$/, ''), version: String(m.version || '80').trim(), merchantId: (m.merchantId || '').trim() }, cybs: { host: String(body.envs[e].cybs?.host || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, ''), merchantId: String(body.envs[e].cybs?.merchantId || '').trim() } };
       }
     }
     for (const k of ['allowDemoOnProduction', 'offerMoto', 'merchantName', 'publicBaseUrl']) if (k in body) patch[k] = body[k];

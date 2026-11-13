@@ -47,12 +47,7 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
               ))}
               <label className="f">API (integration) password</label>
               <input type="password" placeholder={creds[e].mpgsPasswordSet ? `Saved (${creds[e].mpgsPasswordHint}). Leave blank to keep.` : 'Not set'} value={c[e].mpgsPassword} onChange={(ev) => setC({ ...c, [e]: { ...c[e], mpgsPassword: ev.target.value } })} />
-              <label className="f">Token value (save card)</label>
-              <select value={envs[e].mpgs?.tokenMode || 'merchant'} onChange={(ev) => setEnvs({ ...envs, [e]: { ...envs[e], mpgs: { ...(envs[e].mpgs || {}), tokenMode: ev.target.value } } })}>
-                <option value="merchant">Merchant-supplied (shop sends the value, like PGW)</option>
-                <option value="gateway">MPGS-generated</option>
-              </select>
-              <p className="muted" style={{ fontSize: 12 }}>Must match the MID's token repository. A mismatch fails with "Expected card token to be supplied" or "Card token must not be supplied". Sent as Basic merchant.&lt;MID&gt;:&lt;password&gt;. UAE PGW runs on v80.</p>
+              <p className="muted" style={{ fontSize: 12 }}>Sent as Basic merchant.&lt;MID&gt;:&lt;password&gt;. UAE PGW runs on v80.</p>
               <h3 style={{ borderTop: '1px solid var(--line)', paddingTop: 14 }}>CYBS direct</h3>
               {[['host', 'REST host', 'api.cybersource.com'], ['merchantId', 'Merchant ID (v-c-merchant-id)', '20100000202']].map(([k, l, ph]) => (
                 <div key={k}><label className="f">{l}</label><input className="mono" placeholder={ph} value={envs[e].cybs?.[k] || ''} onChange={(ev) => setEnvs({ ...envs, [e]: { ...envs[e], cybs: { ...(envs[e].cybs || {}), [k]: ev.target.value } } })} /></div>

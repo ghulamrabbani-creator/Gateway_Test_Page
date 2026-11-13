@@ -14,7 +14,7 @@ export async function POST(req) {
     const { data: row } = await db().from('orders').select('ref,session_id,options').eq('ref', t.order_ref).maybeSingle();
     const sessionId = row?.options?.mpgs?.sessionId || row?.session_id;
     if (!sessionId) throw new HttpError(400, 'The order has no MPGS session to tokenize from.');
-    const r = await tokenizeSession(t.env, sessionId, t.order_ref, user);
+    const r = await tokenizeSession(t.env, sessionId, t.order_ref, user, row?.options?.mpgsTokenValue === 'mpgs' ? 'mpgs' : 'geidea');
     const value = r.json?.token;
     await db().from('tokens').update(value
       ? { token_id: value, status: 'ACTIVE', card: cardFromMpgs(r.json), scheme: r.json?.schemeToken ? { ...r.json.schemeToken, repositoryId: r.json.repositoryId, status: r.json.status, value, found: true } : null, checked_at: new Date().toISOString(), note: null }

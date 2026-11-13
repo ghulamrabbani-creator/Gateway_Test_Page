@@ -42,7 +42,7 @@ export async function POST(req, { params }) {
     if (saving) {
       const approved = r.ok && r.json?.response?.gatewayCode === 'APPROVED';
       if (approved) {
-        tok = await tokenizeSession(row.env, m.sessionId, row.ref, user);
+        tok = await tokenizeSession(row.env, m.sessionId, row.ref, user, s.mpgsTokenValue === 'mpgs' ? 'mpgs' : 'geidea');
         const value = tok.json?.token;
         await db().from('tokens').update(value ? { token_id: value, status: 'ACTIVE', card: cardFromMpgs(tok.json), scheme: tok.json?.schemeToken ? { ...tok.json.schemeToken, repositoryId: tok.json.repositoryId, status: tok.json.status, value, found: true } : null, checked_at: new Date().toISOString(), note: null } : { status: 'FAILED', note: `MPGS token not created: ${tok.json?.error?.explanation || tok.error || 'no token in response'}` }).eq('order_ref', row.ref);
         if (value) await db().from('orders').update({ token_id: value }).eq('ref', row.ref);

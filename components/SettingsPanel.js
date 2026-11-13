@@ -52,6 +52,11 @@ export default function SettingsPanel({ s, set, pub, role }) {
       {direct && s.auth === 'none' && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>Sent as an internet payment without authentication (ECI 07): no liability shift, and the issuer may soft-decline.</p>}
       <label className="f">Save card (token)</label>
       <Seg value={s.saveCard} onChange={up('saveCard')} options={[['none', 'No'], ['cit', 'CIT'], ['mit', 'MIT'], ['citmit', 'CIT + MIT']]} />
+      {mpgs && s.saveCard !== 'none' && (<>
+        <label className="f">MPGS token value</label>
+        <Seg value={s.mpgsTokenValue || 'geidea'} onChange={up('mpgsTokenValue')} options={[['geidea', 'Geidea sends its value (PGW flow)'], ['mpgs', 'MPGS generates it']]} />
+        <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>{s.mpgsTokenValue === 'mpgs' ? 'POST /token with no value; MPGS returns the token. Needs a repository that generates tokens.' : 'PUT /token/{value} with a Geidea-style value, as PGW does. Needs a repository that accepts merchant-supplied tokens.'}</p>
+      </>)}
       {(s.saveCard === 'mit' || s.saveCard === 'citmit') && (<>
         <label className="f">Agreement type (MIT)</label>
         <Seg value={s.agreementType} onChange={up('agreementType')} options={[['Unscheduled', 'Unscheduled'], ['Recurring', 'Recurring']]} />
