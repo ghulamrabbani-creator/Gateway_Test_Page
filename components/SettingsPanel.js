@@ -68,8 +68,15 @@ export default function SettingsPanel({ s, set, pub, role }) {
 }
 
 export function SettingsChips({ s }) {
-  const chips = ['UAE', s.env.toUpperCase(), 'GEIDEA', s.mode.toUpperCase(), s.hppProfile.toUpperCase(), s.language.toUpperCase(), s.operation === 'Pay' ? 'SALE' : 'PRE-AUTH', s.auth === 'moto' ? 'MOTO' : '3DS', s.currency];
-  if (s.saveCard !== 'none') chips.push(`SAVE ${s.saveCard.toUpperCase()}`);
-  if (s.tokenId) chips.push('TOKEN');
-  return <div className="chips">{chips.map((c) => <span key={c} className={`pill ${c === 'PRODUCTION' ? 'warn' : ''}`}>{c}</span>)}</div>;
+  const env = { test: 'Test', staging: 'Staging', production: 'Production' }[s.env];
+  const chips = [
+    [env, s.env === 'production' ? 'warn' : ''],
+    [`${s.mode === 'dropin' ? 'Drop-in' : s.mode === 'redirect' ? 'Redirect' : 'Modal'} checkout`, ''],
+    [s.operation === 'Pay' ? 'Sale' : 'Pre-auth', ''],
+    [s.auth === 'moto' ? 'MOTO' : '3-D Secure', ''],
+    [s.currency, ''],
+  ];
+  if (s.saveCard !== 'none') chips.push([`Save card for ${{ cit: 'CIT', mit: 'MIT', citmit: 'CIT + MIT' }[s.saveCard]}`, '']);
+  if (s.tokenId) chips.push(['Paying with saved token', '']);
+  return <div className="chips">{chips.map(([c, t]) => <span key={c} className={`pill ${t}`}>{c}</span>)}</div>;
 }

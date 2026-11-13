@@ -17,9 +17,9 @@ export default function Login() {
   }
   return (
     <div className="login card">
-      <h1>UAE Test Shop</h1>
-      <p className="sub">Geidea payment gateway test merchant</p>
-      <div className="msg warn" style={{ fontSize: 12 }}>Demo login: <b>demo / demo</b>. Admins manage credentials.</div>
+      <h1>Gateway test bench</h1>
+      <p className="sub">Run test payments against the Geidea gateway in the UAE and see what happened to each one.</p>
+      <p className="muted" style={{ fontSize: 14 }}>Testers sign in as <b>demo</b> with password <b>demo</b>. Admins also manage gateway credentials.</p>
       <form onSubmit={submit}>
         <label className="f">Username</label>
         <input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" />

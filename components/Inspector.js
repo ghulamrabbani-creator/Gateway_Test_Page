@@ -22,7 +22,7 @@ export default function Inspector({ logs, openFirst = false }) {
           <span className="spacer" style={{ flex: 1 }} />
           {verdict && <span className={`pill ${verdict.tone}`}>{String(verdict.value).slice(0, 60)}</span>}
           <CopyButton text={allText} label="Copy all" />
-          <span className="muted mono">{l.duration_ms} ms · {new Date(l.created_at).toLocaleString()} · {l.created_by}</span>
+          <span className="muted" style={{ fontSize: 13 }}>{new Date(l.created_at).toLocaleString()}</span><span className="muted mono">{l.duration_ms} ms</span><span className="muted" style={{ fontSize: 13 }}>{l.created_by}</span>
         </summary>
         <div className="body">
           <h3>Key insights</h3>
