@@ -1,6 +1,7 @@
 import './globals.css';
 import Link from 'next/link';
 import { currentUser } from '@/lib/auth';
+import { RELEASE, COMMIT } from '@/lib/release';
 
 export const metadata = { title: 'Geidea UAE Test Shop' };
 export const dynamic = 'force-dynamic';
@@ -21,12 +22,14 @@ export default function RootLayout({ children }) {
               <Link href="/callbacks">Callbacks</Link>
               {user.role === 'admin' && <Link href="/admin">Admin</Link>}
               <span className="spacer" />
+              <span className="release" title={`Commit ${COMMIT}`}>{RELEASE} · {COMMIT}</span>
               <span className="who">{user.user} · {user.role}</span>
               <form action="/api/auth/logout" method="post"><button className="ghost" style={{ padding: '4px 10px' }}>Sign out</button></form>
             </div>
           </header>
         )}
         <main>{children}</main>
+        {!user && <div className="release-foot">{RELEASE} · {COMMIT}</div>}
       </body>
     </html>
   );

@@ -73,3 +73,6 @@ details.call .body { padding: 0 12px 12px; }
 .kv div:nth-child(odd) { color: var(--muted); }
 
 button.copy { padding: 3px 8px; font-size: 12px; gap: 4px; }
+
+header.top .release { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.12); color: #fff; }
+.release-foot { text-align: center; font-family: var(--mono); font-size: 11px; color: var(--muted); padding-bottom: 20px; }

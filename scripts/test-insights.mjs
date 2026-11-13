@@ -80,4 +80,16 @@ assert.match(pick(ins, 'settle').value, /USD/);
 assert.equal(pick(ins, 'credential').value, 'Not in this response');
 assert.match(pick(responseInsights({ status: 200, res_body: { responseCode: '110', detailedResponseCode: '013' } }), 'code').value, /billing address/);
 
+// 8. Real MPGS order (13-Nov-2026, TS-8C58EA6E): providerType, acquirer link, CVV
+const mpgs = { status: 'Success', detailedStatus: 'Paid', currency: 'AED', initiatedBy: 'Internet', paymentMethod: { type: 'Card', brand: 'mastercard', maskedCardNumber: '549284******8240' },
+  transactions: [
+    { type: 'Authentication', status: 'Success', providerType: 'MPGS', authenticationDetails: { acsEci: '02', transactionStatus: 'Y', protocolVersion: '2.2.0' }, codes: { responseCode: '000' } },
+    { type: 'Pay', status: 'Success', providerType: 'MPGS', rrn: '631716008197', authorizationCode: 'T90490', acquirer: { id: 'GEIDEA_UAE_S2I', transactionId: 'NP4DHC' }, authorizationResponse: { financialNetworkCode: 'MCW', cardSecurityCodeError: 'M' }, codes: { responseCode: '000', acquirerCode: '00' } },
+  ] };
+ins = orderInsights(mpgs);
+assert.equal(pick(ins, 'processor').value, 'MPGS');
+assert.match(pick(ins, 'processor').note, /GEIDEA_UAE_S2I/);
+assert.equal(pick(ins, 'cvv').value, 'CVV matched');
+assert.equal(pick(ins, 'liability').value, 'Shifted to issuer');
+
 console.log('All insights and signature checks passed');
