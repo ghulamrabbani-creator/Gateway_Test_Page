@@ -11,7 +11,7 @@ function loadScript(src) {
     const el = document.createElement('script');
     el.src = src;
     el.onload = () => { window.__gdSdk = src; resolve(); };
-    el.onerror = () => reject(new Error(`Could not load ${src}`));
+    el.onerror = () => reject(new Error(`Could not load the Geidea checkout script from ${src}. The session was created; your browser could not reach the SDK host (network, VPN, firewall or ad-blocker). Open ${src} in a new tab to check.`));
     document.head.appendChild(el);
   });
 }
