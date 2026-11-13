@@ -44,6 +44,8 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
   const [mit, setMit] = useState({ amount: '1.00', currency: 'AED', operation: 'Pay' });
   const [result, setResult] = useState(null);
   const [st, tone] = STATUS[t.status] || [t.status, ''];
+  const isMpgs = t.route === 'mpgs';
+  const sc = t.scheme;
   const canMit = t.status === 'ACTIVE' && t.token_id && t.agreement_id;
   const canCit = t.status === 'ACTIVE' && t.token_id;
 
@@ -54,15 +56,24 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
     if (!ok) setResult({ error: j.error });
     onChanged();
   }
+  async function checkScheme() {
+    setBusy('scheme'); setResult(null);
+    const { ok, j } = await post('/api/tokens/mpgs-check', { id: t.id });
+    setBusy('');
+    setResult(ok ? { insights: j.insights } : { error: j.error, insights: j.insights });
+    onChanged();
+  }
   async function chargeMit() {
     setBusy('mit'); setResult(null);
-    const { ok, j } = await post('/api/tokens/mit', { env: t.env, tokenId: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit });
+    const { ok, j } = isMpgs
+      ? await post('/api/tokens/mpgs-mit', { env: t.env, token: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit })
+      : await post('/api/tokens/mit', { env: t.env, tokenId: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit });
     setBusy('');
     setResult(ok ? { ref: j.ref, insights: j.insights } : { error: j.error });
     onChanged();
   }
   function payCit() {
-    setS({ ...s, tokenId: t.token_id, env: t.env, auth: '3ds' });
+    setS(isMpgs ? { ...s, route: 'mpgs', mpgsToken: t.token_id, mpgsAgreementId: t.agreement_id || '', saveCard: 'none', env: t.env, auth: '3ds' } : { ...s, route: 'geidea', tokenId: t.token_id, env: t.env, auth: '3ds' });
     router.push('/checkout');
   }
   async function remove() {
@@ -75,7 +86,7 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
       <CardFace t={t} />
       <div className="sc-body">
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <div className="row"><span className={`pill ${tone}`}>{st}</span><span className="muted" style={{ fontSize: 13 }}>{t.env === 'production' ? 'Production' : t.env === 'staging' ? 'Staging' : 'Test'}</span></div>
+          <div className="row"><span className={`pill ${tone}`}>{st}</span><span className="muted" style={{ fontSize: 13 }}>{t.env === 'production' ? 'Production' : t.env === 'staging' ? 'Staging' : 'Test'} · {isMpgs ? 'MPGS direct' : 'Geidea PGW'}</span></div>
           <button className="ghost small" onClick={remove}>Remove</button>
         </div>
         {t.note && <p className="sc-note">{t.note}</p>}
@@ -83,7 +94,12 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
           <dt>Token ID</dt><dd className="mono">{t.token_id || 'Not received yet'}</dd>
           <dt>Can be used for</dt><dd>{t.usage === 'CIT' ? 'Customer payments (CIT): the customer enters only CVV / OTP' : t.usage === 'MIT' ? 'Merchant charges (MIT) without the customer' : 'Customer payments (CIT) and merchant charges (MIT)'}</dd>
           {t.agreement_id && (<><dt>MIT agreement</dt><dd><span className="mono">{t.agreement_id}</span> ({t.agreement_type || 'Unscheduled'})</dd></>)}
-          <dt>Token type</dt><dd>Geidea gateway token. Whether the scheme issued a network token isn't returned by PGW; the MPGS route (phase 2) will show it.</dd>
+          <dt>Token type</dt><dd>{isMpgs ? 'MPGS gateway token (saved through MPGS direct, not known to PGW)' : 'Geidea gateway token'}</dd>
+          <dt>Network token</dt><dd>{!sc ? <span className="muted">Not checked on MPGS yet{isMpgs ? '' : '. PGW keeps an MPGS token under the Geidea token ID without dashes, if the card went through MPGS.'}</span>
+            : !sc.found ? <span>Not found on MPGS{sc.error ? ` (${sc.error})` : ''}. {isMpgs ? '' : 'The card may have been processed on CYBS, or saved before PGW created MPGS tokens.'}</span>
+            : sc.provider ? <span><b>Yes, {sc.provider === 'VTS' ? 'Visa (VTS)' : sc.provider === 'MDES' ? 'Mastercard (MDES)' : sc.provider}</b>{sc.status ? `, ${sc.status}` : ''} · repository {sc.repositoryId}</span>
+            : <span>No network token yet · repository {sc.repositoryId}. Provisioning is asynchronous; check again later.</span>}
+            {t.checked_at && <span className="muted" style={{ fontSize: 12 }}> · checked {new Date(t.checked_at).toLocaleString()}</span>}</dd>
           <dt>Card</dt><dd>{[t.card?.funding && t.card.funding.toLowerCase(), t.card?.brand].filter(Boolean).join(' ') || 'Details arrive with the save result'}{t.card?.issuer ? `, ${t.card.issuer}` : ''}</dd>
           <dt>Saved</dt><dd>{new Date(t.created_at).toLocaleString()} by {t.created_by}, {t.source === 'payment' ? 'during payment ' : 'without a payment '}{t.order_ref && <Link href={`/orders/${t.order_ref}`} className="mono">{t.order_ref}</Link>}</dd>
           {t.last_used_at && (<><dt>Last used</dt><dd>{new Date(t.last_used_at).toLocaleString()} on <Link href={`/orders/${t.last_used_ref}`} className="mono">{t.last_used_ref}</Link></dd></>)}
@@ -91,7 +107,8 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
         <div className="row">
           {canCit && t.usage !== 'MIT' && <button onClick={payCit}>Pay with this card (CIT)</button>}
           {canMit && <button className={mitOpen ? 'ghost' : ''} onClick={() => setMitOpen(!mitOpen)}>{mitOpen ? 'Close MIT' : 'Charge without the customer (MIT)'}</button>}
-          {t.status !== 'ACTIVE' && <button className="ghost" disabled={!!busy} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check status with Geidea'}</button>}
+          {t.status !== 'ACTIVE' && !isMpgs && <button className="ghost" disabled={!!busy} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check status with Geidea'}</button>}
+          {t.token_id && <button className="ghost" disabled={!!busy} onClick={checkScheme}>{busy === 'scheme' ? 'Asking MPGS…' : 'Check network token on MPGS'}</button>}
         </div>
         {t.status === 'ACTIVE' && t.usage !== 'CIT' && !t.agreement_id && <p className="sc-note">No MIT agreement is stored for this card, so it can't be charged without the customer. Save it during a payment with Save card set to MIT.</p>}
         {mitOpen && (
@@ -150,7 +167,7 @@ export default function CardsClient({ tokens, pub }) {
   return (
     <div>
       <h1>Saved cards</h1>
-      <p className="sub">Cards saved as Geidea tokens. Pay with one as the customer (CIT), or charge it without the customer (MIT) when it was saved with an agreement.</p>
+      <p className="sub">Cards saved as Geidea tokens or, through MPGS direct, as MPGS tokens. Pay with one as the customer (CIT), charge it without the customer (MIT) when it has an agreement, or ask MPGS whether a network token sits behind it.</p>
 
       <div className="grid cards-layout">
         <div>
@@ -163,7 +180,7 @@ export default function CardsClient({ tokens, pub }) {
         <div>
           <div className="card">
             <h2>Save a new card</h2>
-            <p className="muted" style={{ fontSize: 14, marginTop: 0 }}>Opens the Geidea card form without charging anything. Uses the {s.env} credentials.</p>
+            <p className="muted" style={{ fontSize: 14, marginTop: 0 }}>Opens the Geidea card form without charging anything. Uses the {s.env} credentials. To save an MPGS token, pay through MPGS direct with Save card on.</p>
             <label className="f">The card will be used for</label>
             <div className="seg">
               {[['CIT', 'Customer payments'], ['MIT', 'Merchant charges'], ['CIT+MIT', 'Both']].map(([v, l]) => <button key={v} type="button" className={usage === v ? 'on' : ''} onClick={() => setUsage(v)}>{l}</button>)}

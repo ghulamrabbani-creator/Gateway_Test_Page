@@ -8,7 +8,7 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
   const router = useRouter();
   const [tab, setTab] = useState('creds');
   const [envs, setEnvs] = useState(cfg.envs);
-  const [c, setC] = useState(Object.fromEntries(ENVS.map(([e]) => [e, { publicKey: creds[e].publicKey, apiPassword: '' }])));
+  const [c, setC] = useState(Object.fromEntries(ENVS.map(([e]) => [e, { publicKey: creds[e].publicKey, apiPassword: '', mpgsPassword: '' }])));
   const [g, setG] = useState({ allowDemoOnProduction: cfg.allowDemoOnProduction, offerMoto: cfg.offerMoto, motoExtra: cfg.motoExtra, currencies: cfg.currencies, merchantName: cfg.merchantName, publicBaseUrl: cfg.publicBaseUrl });
   const [pw, setPw] = useState({ demoPassword: '', adminPassword: '' });
   const [msg, setMsg] = useState(null);
@@ -20,7 +20,7 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
     const j = await r.json().catch(() => ({}));
     setBusy(false);
     setMsg(r.ok ? { tone: 'good', text: 'Saved.' } : { tone: 'bad', text: j.error || 'Save failed' });
-    if (r.ok) { setPw({ demoPassword: '', adminPassword: '' }); setC(Object.fromEntries(ENVS.map(([e]) => [e, { ...c[e], apiPassword: '' }]))); router.refresh(); }
+    if (r.ok) { setPw({ demoPassword: '', adminPassword: '' }); setC(Object.fromEntries(ENVS.map(([e]) => [e, { ...c[e], apiPassword: '', mpgsPassword: '' }]))); router.refresh(); }
   }
   const T = (id, label) => <button type="button" className={tab === id ? '' : 'ghost'} onClick={() => setTab(id)}>{label}</button>;
 
@@ -41,6 +41,13 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
               <label className="f">API password</label>
               <input type="password" placeholder={creds[e].passwordSet ? `Saved (${creds[e].passwordHint}). Leave blank to keep.` : 'Not set'} value={c[e].apiPassword} onChange={(ev) => setC({ ...c, [e]: { ...c[e], apiPassword: ev.target.value } })} />
               <p className="muted" style={{ fontSize: 12 }}>API: {envs[e].apiBase}{creds[e].updatedAt && <><br />Updated {new Date(creds[e].updatedAt).toLocaleString()}</>}</p>
+              <h3 style={{ borderTop: '1px solid var(--line)', paddingTop: 14 }}>MPGS direct</h3>
+              {[['baseUrl', 'Gateway base URL', 'https://na-gateway.mastercard.com'], ['version', 'API version', '80'], ['merchantId', 'Merchant ID', '20100000101']].map(([k, l, ph]) => (
+                <div key={k}><label className="f">{l}</label><input className={k === 'baseUrl' ? '' : 'mono'} placeholder={ph} value={envs[e].mpgs?.[k] || ''} onChange={(ev) => setEnvs({ ...envs, [e]: { ...envs[e], mpgs: { ...(envs[e].mpgs || {}), [k]: ev.target.value } } })} /></div>
+              ))}
+              <label className="f">API (integration) password</label>
+              <input type="password" placeholder={creds[e].mpgsPasswordSet ? `Saved (${creds[e].mpgsPasswordHint}). Leave blank to keep.` : 'Not set'} value={c[e].mpgsPassword} onChange={(ev) => setC({ ...c, [e]: { ...c[e], mpgsPassword: ev.target.value } })} />
+              <p className="muted" style={{ fontSize: 12 }}>Sent as Basic merchant.&lt;MID&gt;:&lt;password&gt;. UAE PGW runs on v80.</p>
             </div>
           ))}
         </div>

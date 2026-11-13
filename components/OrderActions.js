@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function OrderActions({ refId, currency, detailed, authorized, captured, refunded, amount }) {
+export default function OrderActions({ gateway = 'Geidea', refId, currency, detailed, authorized, captured, refunded, amount }) {
   const router = useRouter();
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(null);
@@ -23,7 +23,7 @@ export default function OrderActions({ refId, currency, detailed, authorized, ca
   return (
     <div>
       <div className="row" style={{ marginBottom: 12 }}>
-        <button className="ghost" disabled={!!busy} onClick={() => act('fetch')}>{busy === 'fetch' ? 'Fetching…' : 'Fetch order from Geidea'}</button>
+        <button className="ghost" disabled={!!busy} onClick={() => act('fetch')}>{busy === 'fetch' ? 'Fetching…' : `Fetch order from ${gateway}`}</button>
       </div>
       <label className="f">Capture ({currency})</label>
       <div className="row"><input style={{ width: 120 }} value={capAmt} onChange={(e) => setCapAmt(e.target.value)} /><button disabled={!!busy || !canCapture} onClick={() => act('capture', capAmt)}>{busy === 'capture' ? 'Capturing…' : 'Capture'}</button></div>

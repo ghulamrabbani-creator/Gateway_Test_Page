@@ -131,3 +131,25 @@ details.call .body { padding: 2px 14px 14px; }
 .sc-note { font-size: 13px; color: var(--warn); background: var(--warn-bg); border-radius: var(--r); padding: 8px 12px; margin: 10px 0; }
 .sc-mit { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 4px; }
 button.small { padding: 4px 10px; font-size: 13px; }
+
+/* checkout (R8): compact payment summary + hosted card form */
+.checkout { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 920px) { .checkout { grid-template-columns: 1fr; } }
+.paysum { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.paysum .amt { font-family: var(--mono); font-size: 34px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+.paysum .amt .ccy { font-size: 15px; color: var(--muted); margin-right: 8px; font-weight: 400; }
+.paysum-facts { display: grid; grid-template-columns: 120px 1fr; gap: 6px 14px; margin: 14px 0 18px; font-size: 14px; }
+.paysum-facts dt { color: var(--muted); }
+.paysum-facts dd { margin: 0; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font-size: inherit; font-weight: 400; cursor: pointer; }
+.linkbtn:hover { text-decoration: underline; filter: none; }
+.hosted-form { border-top: 1px solid var(--line); padding-top: 16px; }
+input.hosted { height: 40px; background: #fff; }
+input.hosted.err, .hosted-form iframe.err { border-color: var(--bad); }
+.field-err { color: var(--bad); font-size: 12px; margin-top: 4px; }
+details.customer > summary { cursor: pointer; list-style: none; }
+details.customer > summary::-webkit-details-marker { display: none; }
+details.customer[open] > summary { margin-bottom: 4px; }
+.challenge:not(:empty) { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 12px; margin-bottom: 18px; }
+.challenge iframe { width: 100%; min-height: 520px; border: 0; }
+.notpgw { border-left: 3px solid var(--warn); }

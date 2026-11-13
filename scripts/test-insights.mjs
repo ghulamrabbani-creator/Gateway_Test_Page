@@ -1,7 +1,7 @@
 // Run: npm run test:insights  — checks the insights rules and signature helpers on sample payloads.
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { orderInsights, responseInsights, explainDe39 } from '../lib/insights.js';
+import { orderInsights, responseInsights, explainDe39, mpgsInsights, isMpgsBody } from '../lib/insights.js';
 
 const pick = (list, key) => list.find((i) => i.key === key);
 
@@ -98,5 +98,46 @@ ins = orderInsights(refunded);
 assert.equal(pick(ins, 'processor').value, 'MPGS');
 assert.match(pick(ins, 'processor').note, /631716008197/);
 assert.ok(!pick(ins, 'decline'));
+
+// 10. Direct MPGS: MIT PAY with a network token (shape from POC run 2, MIT 2)
+const mpgsMit = {
+  merchant: '20100000101', result: 'SUCCESS',
+  order: { id: 'MIT-1794382571637', amount: 1, currency: 'AED', status: 'CAPTURED', totalAuthorizedAmount: 1, totalCapturedAmount: 1, totalRefundedAmount: 0, authenticationStatus: 'AUTHENTICATION_NOT_IN_EFFECT' },
+  response: { acquirerCode: '00', gatewayCode: 'APPROVED' },
+  sourceOfFunds: { type: 'SCHEME_TOKEN', token: '4439130805503259', provided: { card: { brand: 'VISA', deviceSpecificNumber: '412013xxxxxx3057', deviceSpecificExpiry: { month: '11', year: '28' }, number: 'xxxxxxxxxxxx3259', paymentAccountReference: 'V0010015823316295441254374179', storedOnFile: 'STORED', fundingMethod: 'DEBIT' } } },
+  transaction: { id: '1', type: 'PAYMENT', source: 'MERCHANT', authenticationStatus: 'AUTHENTICATION_NOT_IN_EFFECT', acquirer: { id: 'GEIDEA_UAE_S2I' }, receipt: '631712345678', authorizationCode: '488764' },
+  agreement: { id: 'AGR-1794382521719', type: 'UNSCHEDULED' },
+  authorizationResponse: { financialNetworkCode: 'VNT', transactionIdentifier: '586315273721103', posEntryMode: '102' },
+};
+assert.ok(isMpgsBody(mpgsMit));
+assert.ok(!isMpgsBody(ok) && !isMpgsBody({ responseCode: '000', order: ok }));
+ins = responseInsights({ status: 201, res_body: mpgsMit });
+assert.equal(pick(ins, 'outcome').tone, 'good');
+assert.equal(pick(ins, 'credential').value, 'Scheme (network) token');
+assert.match(pick(ins, 'credential').note, /412013/);
+assert.equal(pick(ins, 'cof').value, 'Merchant-initiated (MIT)');
+assert.match(pick(ins, 'processor').note, /586315273721103/);
+assert.equal(pick(ins, 'pgw').value, 'Not in PGW');
+
+// 11. MPGS decline + error + token responses
+ins = mpgsInsights({ result: 'FAILURE', merchant: 'X', order: { id: 'A', status: 'FAILED' }, response: { gatewayCode: 'INSUFFICIENT_FUNDS', acquirerCode: '51' }, transaction: { id: '1', type: 'PAYMENT', source: 'INTERNET' }, sourceOfFunds: { type: 'CARD', provided: { card: { brand: 'MASTERCARD' } } } });
+assert.equal(pick(ins, 'outcome').tone, 'bad');
+assert.match(pick(ins, 'decline').value, /Insufficient/);
+ins = responseInsights({ status: 400, res_body: { error: { cause: 'INVALID_REQUEST', explanation: 'Card token must not be supplied', field: 'tokenid', validationType: 'INVALID' }, result: 'ERROR' } });
+assert.equal(pick(ins, 'code').value, 'Card token must not be supplied');
+ins = responseInsights({ status: 200, res_body: { repositoryId: 'NETWORK_TOKEN_NE', result: 'SUCCESS', schemeToken: { provider: 'MDES' }, status: 'VALID', token: '0A151FC6E30A' } });
+assert.match(pick(ins, 'credential').value, /MDES/);
+ins = responseInsights({ status: 200, res_body: { repositoryId: 'NETWORK_TOKEN', result: 'SUCCESS', status: 'VALID', token: '4439130805503259' } });
+assert.equal(pick(ins, 'credential').tone, 'warn');
+
+// 12. MPGS retrieve order with 3DS (ECI 02 Mastercard) then PAY
+ins = mpgsInsights({ id: 'MP-1', status: 'CAPTURED', currency: 'AED', totalAuthorizedAmount: 1, totalCapturedAmount: 1, totalRefundedAmount: 0, authenticationStatus: 'AUTHENTICATION_SUCCESSFUL', transaction: [
+  { result: 'SUCCESS', transaction: { id: '3DS-a', type: 'AUTHENTICATION', authenticationStatus: 'AUTHENTICATION_SUCCESSFUL' }, authentication: { '3ds': { acsEci: '02' }, '3ds2': { transactionStatus: 'Y', protocolVersion: '2.2.0' }, version: '3DS2' } },
+  { result: 'SUCCESS', response: { gatewayCode: 'APPROVED', acquirerCode: '00', cardSecurityCode: { gatewayCode: 'MATCH' } }, transaction: { id: 'PAY-1', type: 'PAYMENT', source: 'INTERNET', acquirer: { id: 'GEIDEA_UAE_S2I' } }, sourceOfFunds: { type: 'CARD', provided: { card: { brand: 'MASTERCARD', number: '525601xxxxxx2492' } } } },
+] });
+assert.equal(pick(ins, 'auth').value, 'Fully authenticated');
+assert.equal(pick(ins, 'liability').value, 'Shifted to issuer');
+assert.equal(pick(ins, 'cvv').value, 'CVV matched');
+assert.match(pick(ins, 'outcome').value, /Paid/);
 
 console.log('All insights and signature checks passed');

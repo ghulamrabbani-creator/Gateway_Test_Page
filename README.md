@@ -1,4 +1,4 @@
-# Geidea UAE Test Shop — Phase 1 (Geidea PGW route)
+# Geidea UAE Test Shop — Phase 1 (Geidea PGW route) + Phase 2 (MPGS direct)
 
 A test merchant for the Geidea payment gateway (UAE: Test, Staging, Production). Modelled on BESO Shop, plus a **request inspector** with **key insights** on every API call.
 
@@ -38,3 +38,11 @@ Database tables already exist in Supabase (`supabase/schema.sql` is the copy). `
 
 ## Next phases
 2. MPGS direct (REST v80, Hosted Session so the PAN never touches this server). 3. CYBS direct (REST HTTP Signature, Microform, TMS). 4. Extras: network token / Click to Pay scenarios, Apple / Google / Samsung Pay via HPP, fee program indicator. Non-card methods are out of scope for now.
+
+## Phase 2: MPGS direct (R8)
+- Admin → Credentials: per environment MPGS gateway URL, API version (UAE: 80), merchant ID and API password (encrypted).
+- Shop settings → Route "MPGS direct". Card capture with MPGS Hosted Session (`session.js`), so the PAN never reaches this server.
+- Flow: Create session → card form → `INITIATE_AUTHENTICATION` → ACS method HTML → `AUTHENTICATE_PAYER` → challenge (ends at `/api/mpgs/3ds-return`) → `/mpgs/complete` → PAY or AUTHORIZE with `authentication.transactionId` → retrieve order.
+- Save card: first CIT sent with `storedOnFile TO_BE_STORED` (+ `agreement` for MIT), card tokenized from the session after approval. Repeat CIT: token + CVV-only session, `STORED`. MIT: token, `transaction.source MERCHANT`, `STORED`, agreement, no CVV.
+- Saved cards → "Check network token on MPGS": `GET /token/{value}` (Geidea tokens: tokenId without dashes, upper case) shows `schemeToken.provider`.
+- MPGS orders have no PGW order and no PGW → APEX federation.
