@@ -4,6 +4,35 @@ import { getOrderRow, refreshFromGeidea } from '@/lib/orders';
 import { capture, voidOrder, refund } from '@/lib/geidea';
 import { responseInsights } from '@/lib/insights';
 import * as mpgs from '@/lib/mpgs';
+import * as cybs from '@/lib/cybs';
+
+// Direct CYBS orders: act on the CYBS payment (our ledger of CYBS transaction IDs lives in options.cybs.txns).
+async function cybsAction(row, type, amount, user) {
+  const cy = row.options?.cybs || {};
+  const txns = cy.txns || [];
+  const okT = (t) => t.id && !['DECLINED', 'INVALID_REQUEST', 'ERROR', 'SERVER_ERROR', 'PENDING_AUTHENTICATION', 'AUTHORIZED_RISK_DECLINED'].includes(t.status);
+  const pay = txns.find((t) => (t.kind === 'sale' || t.kind === 'auth') && okT(t));
+  if (type === 'fetch') {
+    if (!pay) throw new HttpError(400, 'No authorized CYBS payment on this order.');
+    const r = await cybs.getTransaction(row.env, pay.id, row.ref, user);
+    return { ok: r.ok, summary: `Fetched from CYBS: ${r.json?.applicationInformation?.status || r.json?.applicationInformation?.reasonCode || `HTTP ${r.status}`}` };
+  }
+  if (!pay) throw new HttpError(400, 'No authorized CYBS payment on this order.');
+  let r, kind;
+  if (type === 'capture') { kind = 'capture'; r = await cybs.capturePayment(row.env, row.ref, pay.id, amount, row.currency, user); }
+  else if (type === 'refund') {
+    kind = 'refund';
+    const cap = [...txns].reverse().find((t) => t.kind === 'capture' && okT(t));
+    r = pay.kind === 'sale' ? await cybs.refundTxn(row.env, row.ref, 'payment', pay.id, amount, row.currency, user) : cap ? await cybs.refundTxn(row.env, row.ref, 'capture', cap.id, amount, row.currency, user) : null;
+    if (!r) throw new HttpError(400, 'Nothing captured to refund.');
+  } else if (type === 'void') {
+    const last = [...txns].reverse().find((t) => ['capture', 'refund', 'sale'].includes(t.kind) && okT(t));
+    if (pay.kind === 'auth' && (!last || last.kind === 'sale')) { kind = 'reversal'; r = await cybs.reverseAuth(row.env, row.ref, pay.id, row.amount, user); }
+    else { kind = 'void'; r = await cybs.voidTxn(row.env, row.ref, last.kind === 'capture' ? 'captures' : last.kind === 'refund' ? 'refunds' : 'payments', last.id, user); }
+  } else throw new HttpError(400, 'Unknown action');
+  await cybs.recordTxn(row.ref, kind, r, type === 'void' ? null : amount);
+  return { ok: r.ok, summary: `${type[0].toUpperCase() + type.slice(1)}: ${r.json?.status || r.json?.errorInformation?.message || (r.ok ? 'done' : `HTTP ${r.status}`)}` };
+}
 
 // Direct MPGS orders: no PGW order exists, so act on the MPGS order (order ID = our reference).
 async function mpgsAction(row, type, amount, user) {
@@ -36,6 +65,7 @@ export async function POST(req, { params }) {
     await assertEnvAllowed(user, row.env);
     const { type, amount } = await req.json();
     if (row.route === 'mpgs') return Response.json(await mpgsAction(row, type, amount, user));
+    if (row.route === 'cybs') return Response.json(await cybsAction(row, type, amount, user));
     const baseUrl = baseUrlFrom(req, await getConfig());
 
     let current = row;

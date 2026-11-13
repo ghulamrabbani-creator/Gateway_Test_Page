@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
 import { getOrderRow, logsFor } from '@/lib/orders';
-import { orderInsights, mpgsInsights } from '@/lib/insights';
+import { orderInsights, mpgsInsights, cybsInsights } from '@/lib/insights';
 import Insights from '@/components/Insights';
 import Inspector from '@/components/Inspector';
 import OrderActions from '@/components/OrderActions';
@@ -16,7 +16,9 @@ export default async function OrderPage({ params }) {
   const o = row.last_order;
   const mpgs = row.route === 'mpgs';
   const m = row.options?.mpgs || {};
-  const authorized = Number(o?.totalAuthorizedAmount ?? 0);
+  const cybs = row.route === 'cybs';
+  const cy = row.options?.cybs || {};
+  const authorized = cybs ? (['Authorized', 'Paid', 'Refunded', 'PartiallyRefunded'].includes(row.detailed_status) ? Number(row.amount) : 0) : Number(o?.totalAuthorizedAmount ?? 0);
   const captured = Number(row.captured || 0);
   const refunded = Number(row.refunded || 0);
   return (
@@ -24,6 +26,7 @@ export default async function OrderPage({ params }) {
       <p><Link href="/orders">← Orders</Link></p>
       <h1 className="mono">{row.ref}</h1>
       <p className="sub">{row.currency} {Number(row.amount).toFixed(2)} · {row.operation === 'Pay' ? 'Sale' : 'Pre-authorization'} · {row.env} · created {new Date(row.created_at).toLocaleString()} by {row.created_by}</p>
+      {cybs && <div className="msg warn">CYBS direct order (MID {cy.merchantId || '—'}): it was sent straight to CyberSource, so PGW has no order for it and does not federate it to APEX.</div>}
       {mpgs && <div className="msg warn">MPGS direct order (MID {m.merchantId || '—'}, API v{m.version || '—'}): it was sent straight to MPGS, so PGW has no order for it and does not federate it to APEX.</div>}
       {row.options?.external && <div className="msg warn">Imported with Order lookup: this order was not created by this shop{row.options.importedFrom ? ` (its callback goes to ${row.options.importedFrom})` : ''}. Actions here still act on the real order.</div>}
       <div className="grid g2">
@@ -31,7 +34,12 @@ export default async function OrderPage({ params }) {
           <h2>Summary</h2>
           <div className="kv">
             <div>Status</div><div>{row.detailed_status || row.status}</div>
-            {mpgs ? (<>
+            {cybs ? (<>
+              <div>Route</div><div>CYBS direct</div>
+              <div>CYBS payment ID</div><div className="mono">{cy.paymentId || '—'}</div>
+              <div>Network txn ID</div><div className="mono">{o?.processorInformation?.networkTransactionId || '—'}</div>
+              <div>Transactions</div><div className="mono" style={{ fontSize: 12 }}>{(cy.txns || []).map((t) => `${t.kind} ${t.status}${t.id ? ` ${t.id}` : ''}`).join(' · ') || '—'}</div>
+            </>) : mpgs ? (<>
               <div>Route</div><div>MPGS direct</div>
               <div>MPGS order ID</div><div className="mono">{row.ref}</div>
               <div>MPGS status</div><div className="mono">{o?.status || '—'}</div>
@@ -50,16 +58,16 @@ export default async function OrderPage({ params }) {
         </div>
         <div className="card">
           <h2>Actions</h2>
-          <OrderActions gateway={mpgs ? 'MPGS' : 'Geidea'} refId={row.ref} currency={row.currency} detailed={row.detailed_status} authorized={authorized} captured={captured} refunded={refunded} amount={Number(row.amount)} />
+          <OrderActions gateway={cybs ? 'CYBS' : mpgs ? 'MPGS' : 'Geidea'} refId={row.ref} currency={row.currency} detailed={row.detailed_status} authorized={authorized} captured={captured} refunded={refunded} amount={Number(row.amount)} />
         </div>
       </div>
       <div className="card">
         <h2>Key insights</h2>
-        <Insights items={mpgs ? mpgsInsights(o) : orderInsights(o)} empty={`Fetch the order from ${mpgs ? 'MPGS' : 'Geidea'} to see insights.`} />
+        <Insights items={cybs ? cybsInsights(o) : mpgs ? mpgsInsights(o) : orderInsights(o)} empty={`Fetch the order from ${cybs ? 'CYBS' : mpgs ? 'MPGS' : 'Geidea'} to see insights.`} />
       </div>
       <div className="card">
         <h2>Request inspector</h2>
-        <p className="sub" style={{ marginBottom: 10 }}>Every call this shop made to {mpgs ? 'MPGS' : 'Geidea'} for this order, plus what came back through the browser, newest first. Credentials are masked.</p>
+        <p className="sub" style={{ marginBottom: 10 }}>Every call this shop made to {cybs ? 'CYBS' : mpgs ? 'MPGS' : 'Geidea'} for this order, plus what came back through the browser, newest first. Credentials are masked.</p>
         <Inspector logs={logs} openFirst />
       </div>
     </div>

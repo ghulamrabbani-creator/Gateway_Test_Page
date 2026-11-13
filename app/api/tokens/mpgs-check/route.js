@@ -4,6 +4,7 @@
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getToken, pgwTokenValue, cardFromMpgs } from '@/lib/mpgs';
+import { getInstrumentIdentifier } from '@/lib/cybs';
 import { responseInsights } from '@/lib/insights';
 
 export async function POST(req) {
@@ -13,6 +14,14 @@ export async function POST(req) {
     const { data: t } = await db().from('tokens').select('*').eq('id', Number(id)).maybeSingle();
     if (!t?.token_id) throw new HttpError(404, 'Saved card has no token yet.');
     await assertEnvAllowed(user, t.env);
+    if (t.route === 'cybs') {
+      // TMS instrument identifier: tokenizedCard holds the network token (state ACTIVE / SUSPENDED / DELETED / UNPROVISIONED)
+      const r = await getInstrumentIdentifier(t.env, t.token_id, t.order_ref, user);
+      const tc = r.json?.tokenizedCard;
+      const scheme = r.ok ? { found: true, value: t.token_id, provider: tc?.type ? ({ visa: 'VTS', mastercard: 'MDES' }[String(tc.type).toLowerCase()] || tc.type) : null, status: tc?.state || null, number: tc?.number || null, expiry: tc?.expirationMonth ? `${tc.expirationMonth}/${tc.expirationYear}` : null, repositoryId: 'CYBS TMS', iiState: r.json?.state } : { found: false, value: t.token_id, error: r.json?.errorInformation?.message || r.json?.message || r.error || `HTTP ${r.status}` };
+      await db().from('tokens').update({ scheme, checked_at: new Date().toISOString() }).eq('id', t.id);
+      return Response.json({ ok: r.ok, scheme, insights: responseInsights({ status: r.status, res_body: r.json, error: r.error }) });
+    }
     const value = t.route === 'mpgs' ? t.token_id : pgwTokenValue(t.token_id);
     const r = await getToken(t.env, value, t.order_ref, user);
     const found = r.ok && r.json?.token;

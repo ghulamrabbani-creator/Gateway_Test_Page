@@ -1,5 +1,5 @@
 import { requireUser, errorResponse, HttpError } from '@/lib/auth';
-import { getConfig, saveConfig, saveCreds, saveMpgsPassword, ENVS } from '@/lib/config';
+import { getConfig, saveConfig, saveCreds, saveMpgsPassword, saveCybsKey, ENVS } from '@/lib/config';
 import { hashPassword } from '@/lib/crypto';
 
 export async function POST(req) {
@@ -11,7 +11,7 @@ export async function POST(req) {
       patch.envs = {};
       for (const e of ENVS) if (body.envs[e]) {
         const m = body.envs[e].mpgs || {};
-        patch.envs[e] = { apiBase: body.envs[e].apiBase, sdkUrl: body.envs[e].sdkUrl, hppUrl: body.envs[e].hppUrl, mpgs: { baseUrl: (m.baseUrl || '').trim().replace(/\/$/, ''), version: String(m.version || '80').trim(), merchantId: (m.merchantId || '').trim() } };
+        patch.envs[e] = { apiBase: body.envs[e].apiBase, sdkUrl: body.envs[e].sdkUrl, hppUrl: body.envs[e].hppUrl, mpgs: { baseUrl: (m.baseUrl || '').trim().replace(/\/$/, ''), version: String(m.version || '80').trim(), merchantId: (m.merchantId || '').trim(), tokenMode: m.tokenMode === 'gateway' ? 'gateway' : 'merchant' }, cybs: { host: String(body.envs[e].cybs?.host || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, ''), merchantId: String(body.envs[e].cybs?.merchantId || '').trim() } };
       }
     }
     for (const k of ['allowDemoOnProduction', 'offerMoto', 'merchantName', 'publicBaseUrl']) if (k in body) patch[k] = body[k];
@@ -28,6 +28,7 @@ export async function POST(req) {
     if (body.creds) for (const e of ENVS) if (body.creds[e]) {
       await saveCreds(e, body.creds[e].publicKey, body.creds[e].apiPassword);
       await saveMpgsPassword(e, body.creds[e].mpgsPassword);
+      await saveCybsKey(e, body.creds[e].cybsKeyId, body.creds[e].cybsSecret);
     }
     await saveConfig(patch);
     return Response.json({ ok: true });

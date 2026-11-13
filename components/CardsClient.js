@@ -45,6 +45,8 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
   const [result, setResult] = useState(null);
   const [st, tone] = STATUS[t.status] || [t.status, ''];
   const isMpgs = t.route === 'mpgs';
+  const isCybs = t.route === 'cybs';
+  const gwName = isCybs ? 'CYBS' : 'MPGS';
   const sc = t.scheme;
   const canMit = t.status === 'ACTIVE' && t.token_id && t.agreement_id;
   const canCit = t.status === 'ACTIVE' && t.token_id;
@@ -72,7 +74,9 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
   }
   async function chargeMit() {
     setBusy('mit'); setResult(null);
-    const { ok, j } = isMpgs
+    const { ok, j } = isCybs
+      ? await post('/api/tokens/cybs-mit', { env: t.env, iiId: t.token_id, expiry: t.card?.expiry, ntid: t.agreement_id, amount: mit.amount, currency: mit.currency, operation: mit.operation, skipDm: mit.skipDm !== false })
+      : isMpgs
       ? await post('/api/tokens/mpgs-mit', { env: t.env, token: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit })
       : await post('/api/tokens/mit', { env: t.env, tokenId: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit });
     setBusy('');
@@ -80,7 +84,7 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
     onChanged();
   }
   function payCit() {
-    setS(isMpgs ? { ...s, route: 'mpgs', mpgsToken: t.token_id, mpgsAgreementId: t.agreement_id || '', saveCard: 'none', env: t.env, auth: '3ds' } : { ...s, route: 'geidea', tokenId: t.token_id, env: t.env, auth: '3ds' });
+    setS(isCybs ? { ...s, route: 'cybs', cybsIi: t.token_id, cybsExpiry: t.card?.expiry || null, saveCard: 'none', env: t.env, auth: '3ds' } : isMpgs ? { ...s, route: 'mpgs', mpgsToken: t.token_id, mpgsAgreementId: t.agreement_id || '', saveCard: 'none', env: t.env, auth: '3ds' } : { ...s, route: 'geidea', tokenId: t.token_id, env: t.env, auth: '3ds' });
     router.push('/checkout');
   }
   async function remove() {
@@ -93,18 +97,18 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
       <CardFace t={t} />
       <div className="sc-body">
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <div className="row"><span className={`pill ${tone}`}>{st}</span><span className="muted" style={{ fontSize: 13 }}>{t.env === 'production' ? 'Production' : t.env === 'staging' ? 'Staging' : 'Test'} · {isMpgs ? 'MPGS direct' : 'Geidea PGW'}</span></div>
+          <div className="row"><span className={`pill ${tone}`}>{st}</span><span className="muted" style={{ fontSize: 13 }}>{t.env === 'production' ? 'Production' : t.env === 'staging' ? 'Staging' : 'Test'} · {isCybs ? 'CYBS direct' : isMpgs ? 'MPGS direct' : 'Geidea PGW'}</span></div>
           <button className="ghost small" onClick={remove}>Remove</button>
         </div>
         {t.note && <p className="sc-note">{t.note}</p>}
         <dl className="sc-facts">
           <dt>Token ID</dt><dd className="mono">{t.token_id || 'Not received yet'}</dd>
           <dt>Can be used for</dt><dd>{t.usage === 'CIT' ? 'Customer payments (CIT): the customer enters only CVV / OTP' : t.usage === 'MIT' ? 'Merchant charges (MIT) without the customer' : 'Customer payments (CIT) and merchant charges (MIT)'}</dd>
-          {t.agreement_id && (<><dt>MIT agreement</dt><dd><span className="mono">{t.agreement_id}</span> ({t.agreement_type || 'Unscheduled'})</dd></>)}
-          <dt>Token type</dt><dd>{isMpgs ? 'MPGS gateway token (saved through MPGS direct, not known to PGW)' : 'Geidea gateway token'}</dd>
-          <dt>Network token</dt><dd>{!sc ? <span className="muted">Not checked on MPGS yet{isMpgs ? '' : '. PGW keeps an MPGS token under the Geidea token ID without dashes, if the card went through MPGS.'}</span>
-            : !sc.found ? <span>Not found on MPGS{sc.error ? ` (${sc.error})` : ''}. {isMpgs ? '' : 'The card may have been processed on CYBS, or saved before PGW created MPGS tokens.'}</span>
-            : sc.provider ? <span><b>Yes, {sc.provider === 'VTS' ? 'Visa (VTS)' : sc.provider === 'MDES' ? 'Mastercard (MDES)' : sc.provider}</b>{sc.status ? `, ${sc.status}` : ''} · repository {sc.repositoryId}</span>
+          {t.agreement_id && (<><dt>{isCybs ? 'First CIT network txn ID' : 'MIT agreement'}</dt><dd><span className="mono">{t.agreement_id}</span>{isCybs ? ' (sent as previousTransactionId on MITs)' : ` (${t.agreement_type || 'Unscheduled'})`}</dd></>)}
+          <dt>Token type</dt><dd>{isCybs ? 'CYBS TMS instrument identifier (saved through CYBS direct, not known to PGW)' : isMpgs ? 'MPGS gateway token (saved through MPGS direct, not known to PGW)' : 'Geidea gateway token'}</dd>
+          <dt>Network token</dt><dd>{!sc ? <span className="muted">Not checked on {gwName} yet{isMpgs || isCybs ? '' : '. PGW keeps an MPGS token under the Geidea token ID without dashes, if the card went through MPGS.'}</span>
+            : !sc.found ? <span>Not found on {gwName}{sc.error ? ` (${sc.error})` : ''}. {isMpgs || isCybs ? '' : 'The card may have been processed on CYBS, or saved before PGW created MPGS tokens.'}</span>
+            : sc.provider ? <span><b>Yes, {sc.provider === 'VTS' ? 'Visa (VTS)' : sc.provider === 'MDES' ? 'Mastercard (MDES)' : sc.provider}</b>{sc.status ? `, ${sc.status}` : ''}{sc.number ? ` · ${sc.number}` : ''}{sc.expiry ? ` exp ${sc.expiry}` : ''} · {isCybs ? 'TMS' : `repository ${sc.repositoryId}`}</span>
             : <span>No network token yet · repository {sc.repositoryId}. Provisioning is asynchronous; check again later.</span>}
             {t.checked_at && <span className="muted" style={{ fontSize: 12 }}> · checked {new Date(t.checked_at).toLocaleString()}</span>}</dd>
           <dt>Card</dt><dd>{[t.card?.funding && t.card.funding.toLowerCase(), t.card?.brand].filter(Boolean).join(' ') || 'Details arrive with the save result'}{t.card?.issuer ? `, ${t.card.issuer}` : ''}</dd>
@@ -116,7 +120,7 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
           {canMit && <button className={mitOpen ? 'ghost' : ''} onClick={() => setMitOpen(!mitOpen)}>{mitOpen ? 'Close MIT' : 'Charge without the customer (MIT)'}</button>}
           {t.status !== 'ACTIVE' && !isMpgs && <button className="ghost" disabled={!!busy} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check status with Geidea'}</button>}
           {isMpgs && !t.token_id && t.order_ref && <button disabled={!!busy} onClick={retryToken}>{busy === 'retry' ? 'Tokenizing…' : 'Retry token creation'}</button>}
-          {t.token_id && <button className="ghost" disabled={!!busy} onClick={checkScheme}>{busy === 'scheme' ? 'Asking MPGS…' : 'Check network token on MPGS'}</button>}
+          {t.token_id && <button className="ghost" disabled={!!busy} onClick={checkScheme}>{busy === 'scheme' ? `Asking ${gwName}…` : `Check network token on ${gwName}`}</button>}
         </div>
         {t.status === 'ACTIVE' && t.usage !== 'CIT' && !t.agreement_id && <p className="sc-note">No MIT agreement is stored for this card, so it can't be charged without the customer. Save it during a payment with Save card set to MIT.</p>}
         {mitOpen && (
@@ -126,6 +130,7 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
               <div><label className="f">Currency</label><select value={mit.currency} onChange={(e) => setMit({ ...mit, currency: e.target.value })}>{ccys.map((c) => <option key={c}>{c}</option>)}</select></div>
               <div><label className="f">Operation</label><select value={mit.operation} onChange={(e) => setMit({ ...mit, operation: e.target.value })}><option value="Pay">Sale</option><option value="PreAuthorize">Pre-auth</option></select></div>
             </div>
+            {isCybs && <label className="row" style={{ marginTop: 10, fontSize: 14 }}><input type="checkbox" style={{ width: 'auto' }} checked={mit.skipDm !== false} onChange={(e) => setMit({ ...mit, skipDm: e.target.checked })} /> Skip Decision Manager (actionList DECISION_SKIP)</label>}
             <div style={{ marginTop: 12 }}><button disabled={!!busy} onClick={chargeMit}>{busy === 'mit' ? 'Charging…' : `Charge ${mit.currency} ${Number(mit.amount || 0).toFixed(2)}`}</button></div>
           </div>
         )}

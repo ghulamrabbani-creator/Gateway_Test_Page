@@ -1,4 +1,4 @@
-# Geidea UAE Test Shop — Phase 1 (Geidea PGW route) + Phase 2 (MPGS direct)
+# Geidea UAE Test Shop — Phase 1 (Geidea PGW route) + Phase 2 (MPGS direct) + Phase 3 (CYBS direct)
 
 A test merchant for the Geidea payment gateway (UAE: Test, Staging, Production). Modelled on BESO Shop, plus a **request inspector** with **key insights** on every API call.
 
@@ -46,3 +46,13 @@ Database tables already exist in Supabase (`supabase/schema.sql` is the copy). `
 - Save card: first CIT sent with `storedOnFile TO_BE_STORED` (+ `agreement` for MIT), card tokenized from the session after approval. Repeat CIT: token + CVV-only session, `STORED`. MIT: token, `transaction.source MERCHANT`, `STORED`, agreement, no CVV.
 - Saved cards → "Check network token on MPGS": `GET /token/{value}` (Geidea tokens: tokenId without dashes, upper case) shows `schemeToken.provider`.
 - MPGS orders have no PGW order and no PGW → APEX federation.
+
+- Admin → MPGS "Token value": merchant-supplied (PUT /token/{value}, like PGW; default) or MPGS-generated (POST /token). Must match the MID's token repository.
+- Order lookup: Geidea order (import), MPGS order (view only: GET /order/{id}; for PGW orders the MPGS order ID is the Geidea orderId), CYBS transaction (view only: GET /tss/v2/transactions/{id}).
+
+## Phase 3: CYBS direct (R10)
+- Admin → Credentials: CYBS REST host, merchant ID, REST key ID, shared secret (Base64, encrypted). HTTP Signature as in the 11-Nov POC.
+- Card capture with Microform v2 (`POST /microform/v2/sessions` capture context → hosted number/CVV fields → transient token).
+- 3DS: `POST /risk/v1/authentication-setups` → Cardinal device data collection → `POST /pts/v2/payments` with `actionList CONSUMER_AUTHENTICATION` (frictionless authorizes) → challenge (step-up iframe, returns to `/api/cybs/3ds-return`) → payments with `VALIDATE_CONSUMER_AUTHENTICATION`.
+- Save card: `TOKEN_CREATE` + `actionTokenTypes [instrumentIdentifier]` on the authorizing call; first CIT `credentialStoredOnFile true`. Repeat CIT: instrument identifier + expiry, `storedCredentialUsed`, `networkTokenOption prefer`, no CVV. MIT: initiator merchant, `previousTransactionId` = first CIT NTID, optional `DECISION_SKIP`.
+- Capture `/pts/v2/payments/{id}/captures`, refund `/payments|captures/{id}/refunds`, void `/{payments|captures|refunds}/{id}/voids`, auth reversal `/payments/{id}/reversals`. CYBS has no order object, so the shop keeps a ledger in `orders.options.cybs.txns`.

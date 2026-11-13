@@ -8,7 +8,7 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
   const router = useRouter();
   const [tab, setTab] = useState('creds');
   const [envs, setEnvs] = useState(cfg.envs);
-  const [c, setC] = useState(Object.fromEntries(ENVS.map(([e]) => [e, { publicKey: creds[e].publicKey, apiPassword: '', mpgsPassword: '' }])));
+  const [c, setC] = useState(Object.fromEntries(ENVS.map(([e]) => [e, { publicKey: creds[e].publicKey, apiPassword: '', mpgsPassword: '', cybsKeyId: creds[e].cybsKeyId, cybsSecret: '' }])));
   const [g, setG] = useState({ allowDemoOnProduction: cfg.allowDemoOnProduction, offerMoto: cfg.offerMoto, motoExtra: cfg.motoExtra, currencies: cfg.currencies, merchantName: cfg.merchantName, publicBaseUrl: cfg.publicBaseUrl });
   const [pw, setPw] = useState({ demoPassword: '', adminPassword: '' });
   const [msg, setMsg] = useState(null);
@@ -20,7 +20,7 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
     const j = await r.json().catch(() => ({}));
     setBusy(false);
     setMsg(r.ok ? { tone: 'good', text: 'Saved.' } : { tone: 'bad', text: j.error || 'Save failed' });
-    if (r.ok) { setPw({ demoPassword: '', adminPassword: '' }); setC(Object.fromEntries(ENVS.map(([e]) => [e, { ...c[e], apiPassword: '', mpgsPassword: '' }]))); router.refresh(); }
+    if (r.ok) { setPw({ demoPassword: '', adminPassword: '' }); setC(Object.fromEntries(ENVS.map(([e]) => [e, { ...c[e], apiPassword: '', mpgsPassword: '', cybsSecret: '' }]))); router.refresh(); }
   }
   const T = (id, label) => <button type="button" className={tab === id ? '' : 'ghost'} onClick={() => setTab(id)}>{label}</button>;
 
@@ -47,7 +47,21 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
               ))}
               <label className="f">API (integration) password</label>
               <input type="password" placeholder={creds[e].mpgsPasswordSet ? `Saved (${creds[e].mpgsPasswordHint}). Leave blank to keep.` : 'Not set'} value={c[e].mpgsPassword} onChange={(ev) => setC({ ...c, [e]: { ...c[e], mpgsPassword: ev.target.value } })} />
-              <p className="muted" style={{ fontSize: 12 }}>Sent as Basic merchant.&lt;MID&gt;:&lt;password&gt;. UAE PGW runs on v80.</p>
+              <label className="f">Token value (save card)</label>
+              <select value={envs[e].mpgs?.tokenMode || 'merchant'} onChange={(ev) => setEnvs({ ...envs, [e]: { ...envs[e], mpgs: { ...(envs[e].mpgs || {}), tokenMode: ev.target.value } } })}>
+                <option value="merchant">Merchant-supplied (shop sends the value, like PGW)</option>
+                <option value="gateway">MPGS-generated</option>
+              </select>
+              <p className="muted" style={{ fontSize: 12 }}>Must match the MID's token repository. A mismatch fails with "Expected card token to be supplied" or "Card token must not be supplied". Sent as Basic merchant.&lt;MID&gt;:&lt;password&gt;. UAE PGW runs on v80.</p>
+              <h3 style={{ borderTop: '1px solid var(--line)', paddingTop: 14 }}>CYBS direct</h3>
+              {[['host', 'REST host', 'api.cybersource.com'], ['merchantId', 'Merchant ID (v-c-merchant-id)', '20100000202']].map(([k, l, ph]) => (
+                <div key={k}><label className="f">{l}</label><input className="mono" placeholder={ph} value={envs[e].cybs?.[k] || ''} onChange={(ev) => setEnvs({ ...envs, [e]: { ...envs[e], cybs: { ...(envs[e].cybs || {}), [k]: ev.target.value } } })} /></div>
+              ))}
+              <label className="f">REST key ID (shared secret key)</label>
+              <input className="mono" value={c[e].cybsKeyId} onChange={(ev) => setC({ ...c, [e]: { ...c[e], cybsKeyId: ev.target.value } })} />
+              <label className="f">Shared secret (Base64)</label>
+              <input type="password" placeholder={creds[e].cybsSecretSet ? `Saved (${creds[e].cybsSecretHint}). Leave blank to keep.` : 'Not set'} value={c[e].cybsSecret} onChange={(ev) => setC({ ...c, [e]: { ...c[e], cybsSecret: ev.target.value } })} />
+              <p className="muted" style={{ fontSize: 12 }}>HTTP Signature (HmacSHA256) over host, v-c-date, request-target, digest, v-c-merchant-id, same as the 11-Nov POC.</p>
             </div>
           ))}
         </div>

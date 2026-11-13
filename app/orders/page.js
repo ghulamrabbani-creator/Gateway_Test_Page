@@ -21,7 +21,7 @@ export default async function Orders({ searchParams }) {
           <tbody>
             {(data || []).map((o) => (
               <tr key={o.ref}>
-                <td className="mono"><Link href={`/orders/${o.ref}`}>{o.ref}</Link>{o.route === 'mpgs' && <> <span className="pill">MPGS</span></>}</td>
+                <td className="mono"><Link href={`/orders/${o.ref}`}>{o.ref}</Link>{o.route !== 'geidea' && <> <span className="pill">{o.route.toUpperCase()}</span></>}</td>
                 <td>{[o.customer?.firstName, o.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
                 <td>{o.currency} {Number(o.amount).toFixed(2)}</td>
                 <td>{o.operation === 'Pay' ? 'Sale' : 'Pre-auth'}{o.options?.mit ? ' · MIT' : o.options?.tokenId ? ' · CIT token' : ''}{o.options?.saveCard && o.options.saveCard !== 'none' ? ` · save ${o.options.saveCard.toUpperCase()}` : ''}{o.options?.auth === 'moto' ? ' · MOTO' : ''}</td>

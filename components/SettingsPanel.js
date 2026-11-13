@@ -15,7 +15,10 @@ export default function SettingsPanel({ s, set, pub, role }) {
   const up = (k) => (v) => set({ ...s, [k]: v });
   const prodLocked = role !== 'admin' && !pub.allowDemoOnProduction;
   const mpgsReady = !!pub.envs?.[s.env]?.mpgs?.ready;
+  const cybsReady = !!pub.envs?.[s.env]?.cybs?.ready;
   const mpgs = s.route === 'mpgs' && mpgsReady;
+  const cybs = s.route === 'cybs' && cybsReady;
+  const direct = mpgs || cybs;
   const bool = (k) => [[true, 'Show'], [false, 'Hide']].map(([v, l]) => [v, l]);
   return (
     <div className="card">
@@ -25,9 +28,10 @@ export default function SettingsPanel({ s, set, pub, role }) {
       <label className="f">Environment</label>
       <Seg value={s.env} onChange={up('env')} options={[['test', 'Test'], ['staging', 'Staging'], ['production', prodLocked ? 'Production (admin)' : 'Production', prodLocked]]} />
       <label className="f">Route</label>
-      <Seg value={s.route || 'geidea'} onChange={up('route')} options={[['geidea', 'Geidea PGW'], ['mpgs', mpgsReady ? 'MPGS direct' : 'MPGS direct (set up in admin)', !mpgsReady], ['cybs', 'CYBS direct (phase 3)', true]]} />
+      <Seg value={s.route || 'geidea'} onChange={up('route')} options={[['geidea', 'Geidea PGW'], ['mpgs', mpgsReady ? 'MPGS direct' : 'MPGS direct (set up in admin)', !mpgsReady], ['cybs', cybsReady ? 'CYBS direct' : 'CYBS direct (set up in admin)', !cybsReady]]} />
+      {cybs && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>Card form is CYBS Microform (hosted fields, the PAN never reaches this shop). MID {pub.envs[s.env]?.cybs?.merchantId}. No PGW order is created, so PGW does not federate it to APEX.</p>}
       {mpgs && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>Card form is MPGS Hosted Session (fields served by Mastercard, the PAN never reaches this shop). MID {pub.envs[s.env]?.mpgs?.merchantId}. No PGW order is created, so PGW does not federate it to APEX.</p>}
-      {!mpgs && (<>
+      {!direct && (<>
       <label className="f">Checkout mode</label>
       <Seg value={s.mode} onChange={up('mode')} options={[['modal', 'Modal'], ['dropin', 'Drop-in'], ['redirect', 'Redirect']]} />
       <label className="f">HPP style</label>
@@ -42,10 +46,10 @@ export default function SettingsPanel({ s, set, pub, role }) {
       <label className="f">Operation</label>
       <Seg value={s.operation} onChange={up('operation')} options={[['Pay', 'Sale'], ['PreAuthorize', 'Pre-auth / capture']]} />
       <label className="f">Authentication</label>
-      {mpgs
+      {direct
         ? <Seg value={s.auth} onChange={up('auth')} options={[['3ds', '3-D Secure'], ['none', 'No 3DS'], ['moto', 'MOTO']]} />
         : <Seg value={s.auth === 'none' ? '3ds' : s.auth} onChange={up('auth')} options={[['3ds', '3-D Secure'], ['moto', pub.offerMoto ? 'MOTO' : 'MOTO (off in admin)', !pub.offerMoto]]} />}
-      {mpgs && s.auth === 'none' && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>Sent as an internet payment without authentication (ECI 07): no liability shift, and the issuer may soft-decline.</p>}
+      {direct && s.auth === 'none' && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>Sent as an internet payment without authentication (ECI 07): no liability shift, and the issuer may soft-decline.</p>}
       <label className="f">Save card (token)</label>
       <Seg value={s.saveCard} onChange={up('saveCard')} options={[['none', 'No'], ['cit', 'CIT'], ['mit', 'MIT'], ['citmit', 'CIT + MIT']]} />
       {(s.saveCard === 'mit' || s.saveCard === 'citmit') && (<>
@@ -57,7 +61,13 @@ export default function SettingsPanel({ s, set, pub, role }) {
         {Array.from(new Set(['AED', ...pub.currencies])).map((c) => <option key={c}>{c}</option>)}
       </select>
       <label className="f">Pay with token (CIT)</label>
-      {mpgs ? (<>
+      {cybs ? (<>
+        <div className="row">
+          <input className="mono" placeholder="TMS instrument identifier" value={s.cybsIi} onChange={(e) => up('cybsIi')(e.target.value)} style={{ flex: 1 }} />
+          {s.cybsIi && <button type="button" className="ghost" onClick={() => set({ ...s, cybsIi: '', cybsExpiry: null })}>Clear</button>}
+        </div>
+        {s.cybsIi && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>Expiry {s.cybsExpiry?.month ? `${s.cybsExpiry.month}/${s.cybsExpiry.year}` : 'not set (pick the card from Saved cards)'}. No card form; sent as storedCredentialUsed with networkTokenOption prefer.</p>}
+      </>) : mpgs ? (<>
         <div className="row">
           <input className="mono" placeholder="MPGS token" value={s.mpgsToken} onChange={(e) => up('mpgsToken')(e.target.value)} style={{ flex: 1 }} />
           {s.mpgsToken && <button type="button" className="ghost" onClick={() => set({ ...s, mpgsToken: '', mpgsAgreementId: '' })}>Clear</button>}
@@ -72,7 +82,7 @@ export default function SettingsPanel({ s, set, pub, role }) {
       <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>With a token set, the payment page asks only for CVV / OTP. Ignored for MOTO.</p>
       </>)}
 
-      {!mpgs && (<>
+      {!direct && (<>
       <h2 style={{ marginTop: 18 }}>HPP appearance</h2>
       {[['showEmail', 'Email field'], ['showPhone', 'Phone field'], ['showAddress', 'Address field'], ['receiptPage', 'Receipt page'], ['showMerchantName', 'Merchant name']].map(([k, l]) => (
         <div key={k}><label className="f">{l}</label><Seg value={s[k]} onChange={up(k)} options={bool(k)} /></div>
@@ -89,14 +99,15 @@ export default function SettingsPanel({ s, set, pub, role }) {
 export function SettingsChips({ s }) {
   const env = { test: 'Test', staging: 'Staging', production: 'Production' }[s.env];
   const mpgs = s.route === 'mpgs';
+  const cybs = s.route === 'cybs';
   const chips = [
     [env, s.env === 'production' ? 'warn' : ''],
-    mpgs ? ['MPGS direct', 'info'] : [`${s.mode === 'dropin' ? 'Drop-in' : s.mode === 'redirect' ? 'Redirect' : 'Modal'} checkout`, ''],
+    cybs ? ['CYBS direct', 'info'] : mpgs ? ['MPGS direct', 'info'] : [`${s.mode === 'dropin' ? 'Drop-in' : s.mode === 'redirect' ? 'Redirect' : 'Modal'} checkout`, ''],
     [s.operation === 'Pay' ? 'Sale' : 'Pre-auth', ''],
     [s.auth === 'moto' ? 'MOTO' : s.auth === 'none' ? 'No 3DS' : '3-D Secure', ''],
     [s.currency, ''],
   ];
   if (s.saveCard !== 'none') chips.push([`Save card for ${{ cit: 'CIT', mit: 'MIT', citmit: 'CIT + MIT' }[s.saveCard]}`, '']);
-  if (mpgs ? s.mpgsToken : s.tokenId) chips.push(['Paying with saved token', '']);
+  if (cybs ? s.cybsIi : mpgs ? s.mpgsToken : s.tokenId) chips.push(['Paying with saved token', '']);
   return <div className="chips">{chips.map(([c, t]) => <span key={c} className={`pill ${t}`}>{c}</span>)}</div>;
 }

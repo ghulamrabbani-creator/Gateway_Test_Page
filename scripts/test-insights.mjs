@@ -1,7 +1,7 @@
 // Run: npm run test:insights  — checks the insights rules and signature helpers on sample payloads.
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { orderInsights, responseInsights, explainDe39, mpgsInsights, isMpgsBody } from '../lib/insights.js';
+import { orderInsights, responseInsights, explainDe39, mpgsInsights, isMpgsBody, cybsInsights, isCybsBody } from '../lib/insights.js';
 
 const pick = (list, key) => list.find((i) => i.key === key);
 
@@ -139,5 +139,27 @@ assert.equal(pick(ins, 'auth').value, 'Fully authenticated');
 assert.equal(pick(ins, 'liability').value, 'Shifted to issuer');
 assert.equal(pick(ins, 'cvv').value, 'CVV matched');
 assert.match(pick(ins, 'outcome').value, /Paid/);
+
+// 13. Direct CYBS: Visa CIT with instrument identifier → network token (11-Nov POC)
+const cyCit = { id: '7943857634526797404891', status: 'AUTHORIZED', submitTimeUtc: '2026-11-11T08:30:00Z', clientReferenceInformation: { code: 'GDNT-1' },
+  processingInformation: { paymentSolution: '015' }, paymentInformation: { bin: '412013', card: { type: '001', suffix: '3259' }, tokenizedCard: { requestorId: '40020570030', assuranceMethod: '10' } },
+  processorInformation: { approvalCode: '398536', networkTransactionId: '466315305642258', responseCode: '00', paymentAccountReferenceNumber: 'V0010015823316295441254374179', merchantNumber: '20100000202', cardVerification: { resultCode: 'M' } },
+  orderInformation: { amountDetails: { authorizedAmount: '1.00', currency: 'AED' } } };
+assert.ok(isCybsBody(cyCit) && !isMpgsBody(cyCit) && !isCybsBody(mpgsMit) && !isCybsBody({ responseCode: '000', order: ok }));
+ins = responseInsights({ status: 201, res_body: cyCit });
+assert.equal(pick(ins, 'outcome').value, 'Authorized');
+assert.equal(pick(ins, 'credential').value, 'Scheme (network) token');
+assert.match(pick(ins, 'credential').note, /Geidea Visa token requestor/);
+assert.match(pick(ins, 'processor').note, /466315305642258/);
+// DM reject + challenge + II
+ins = cybsInsights({ id: '1', status: 'DECLINED', submitTimeUtc: 'x', errorInformation: { reason: 'DECISION_PROFILE_REJECT', message: 'Decision profile reject' }, riskInformation: { profile: { earlyDecision: 'REJECT' }, score: { result: '37' } } });
+assert.equal(pick(ins, 'outcome').tone, 'bad');
+assert.ok(pick(ins, 'risk'));
+ins = cybsInsights({ id: '2', status: 'PENDING_AUTHENTICATION', submitTimeUtc: 'x', consumerAuthenticationInformation: { stepUpUrl: 'https://x', authenticationTransactionId: 'abc', specificationVersion: '2.2.0' } });
+assert.equal(pick(ins, 'auth').value, 'Challenge required');
+ins = responseInsights({ status: 200, res_body: { id: '7042990005616383259', state: 'ACTIVE', card: { number: '443913XXXXXX3259' }, tokenizedCard: { state: 'ACTIVE', type: 'visa', number: '412013XXXXXX3057', expirationMonth: '11', expirationYear: '2028' }, _links: {} } });
+assert.match(pick(ins, 'credential').value, /VTS/);
+ins = cybsInsights({ id: '3', status: 'AUTHORIZED', submitTimeUtc: 'x', consumerAuthenticationInformation: { eciRaw: '05', paresStatus: 'Y', specificationVersion: '2.2.0' }, paymentInformation: { card: { type: '001' } }, processorInformation: { responseCode: '00', approvalCode: '1' } });
+assert.equal(pick(ins, 'liability').value, 'Shifted to issuer');
 
 console.log('All insights and signature checks passed');
