@@ -44,7 +44,7 @@ export async function POST(req, { params }) {
       if (approved) {
         tok = await tokenizeSession(row.env, m.sessionId, row.ref, user);
         const value = tok.json?.token;
-        await db().from('tokens').update(value ? { token_id: value, status: 'ACTIVE', card: cardFromMpgs(tok.json), scheme: tok.json?.schemeToken || null, checked_at: new Date().toISOString(), note: null } : { status: 'FAILED', note: `MPGS token not created: ${tok.json?.error?.explanation || tok.error || 'no token in response'}` }).eq('order_ref', row.ref);
+        await db().from('tokens').update(value ? { token_id: value, status: 'ACTIVE', card: cardFromMpgs(tok.json), scheme: tok.json?.schemeToken ? { ...tok.json.schemeToken, repositoryId: tok.json.repositoryId, status: tok.json.status, value, found: true } : null, checked_at: new Date().toISOString(), note: null } : { status: 'FAILED', note: `MPGS token not created: ${tok.json?.error?.explanation || tok.error || 'no token in response'}` }).eq('order_ref', row.ref);
         if (value) await db().from('orders').update({ token_id: value }).eq('ref', row.ref);
       } else {
         await db().from('tokens').update({ status: 'FAILED', note: 'Payment not approved, so the card was not tokenized.' }).eq('order_ref', row.ref);

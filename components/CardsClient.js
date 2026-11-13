@@ -56,6 +56,13 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
     if (!ok) setResult({ error: j.error });
     onChanged();
   }
+  async function retryToken() {
+    setBusy('retry'); setResult(null);
+    const { ok, j } = await post('/api/tokens/mpgs-retry', { id: t.id });
+    setBusy('');
+    setResult(ok ? { insights: j.insights } : { error: j.error, insights: j.insights });
+    onChanged();
+  }
   async function checkScheme() {
     setBusy('scheme'); setResult(null);
     const { ok, j } = await post('/api/tokens/mpgs-check', { id: t.id });
@@ -108,6 +115,7 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
           {canCit && t.usage !== 'MIT' && <button onClick={payCit}>Pay with this card (CIT)</button>}
           {canMit && <button className={mitOpen ? 'ghost' : ''} onClick={() => setMitOpen(!mitOpen)}>{mitOpen ? 'Close MIT' : 'Charge without the customer (MIT)'}</button>}
           {t.status !== 'ACTIVE' && !isMpgs && <button className="ghost" disabled={!!busy} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check status with Geidea'}</button>}
+          {isMpgs && !t.token_id && t.order_ref && <button disabled={!!busy} onClick={retryToken}>{busy === 'retry' ? 'Tokenizing…' : 'Retry token creation'}</button>}
           {t.token_id && <button className="ghost" disabled={!!busy} onClick={checkScheme}>{busy === 'scheme' ? 'Asking MPGS…' : 'Check network token on MPGS'}</button>}
         </div>
         {t.status === 'ACTIVE' && t.usage !== 'CIT' && !t.agreement_id && <p className="sc-note">No MIT agreement is stored for this card, so it can't be charged without the customer. Save it during a payment with Save card set to MIT.</p>}
