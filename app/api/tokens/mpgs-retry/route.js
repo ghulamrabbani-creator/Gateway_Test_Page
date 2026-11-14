@@ -17,7 +17,7 @@ export async function POST(req) {
     const r = await tokenizeSession(t.env, sessionId, t.order_ref, user, row?.options?.mpgsTokenValue === 'mpgs' ? 'mpgs' : 'geidea');
     const value = r.json?.token;
     await db().from('tokens').update(value
-      ? { token_id: value, status: 'ACTIVE', card: cardFromMpgs(r.json), scheme: r.json?.schemeToken ? { ...r.json.schemeToken, repositoryId: r.json.repositoryId, status: r.json.status, value, found: true } : null, checked_at: new Date().toISOString(), note: null }
+      ? { token_id: value, status: 'ACTIVE', card: cardFromMpgs(r.json), scheme: { ...(r.json?.schemeToken || {}), repositoryId: r.json?.repositoryId || null, status: r.json?.status, value, found: true }, checked_at: new Date().toISOString(), note: null }
       : { note: `MPGS token not created: ${r.json?.error?.explanation || r.error || 'no token in response'}` }).eq('id', t.id);
     if (value) await db().from('orders').update({ token_id: value }).eq('ref', t.order_ref);
     return Response.json({ ok: !!value, insights: responseInsights({ status: r.status, res_body: r.json, error: r.error }) });

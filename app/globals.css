@@ -156,3 +156,11 @@ details.customer[open] > summary { margin-bottom: 4px; }
 .mf-field { height: 40px; padding: 9px 11px; border: 1px solid var(--line-strong); border-radius: var(--r); background: #fff; }
 .mf-field.flex-microform-focused { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .mf-field.flex-microform-invalid { border-color: var(--bad); }
+
+/* orders list: route tags and card brand badges (text badges, no scheme logos) */
+.pill.route-geidea { background: #e7edfc; color: #1f4fd1; }
+.pill.route-mpgs { background: #fdeee6; color: #a3410f; }
+.pill.route-cybs { background: #e8f1f7; color: #1d5a80; }
+.brand { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 3px; border: 1px solid var(--line-strong); color: var(--ink); background: #fff; }
+.brand-visa { border-color: #1a1f71; color: #1a1f71; }
+.brand-mastercard { border-color: #c2410c; color: #9a3412; }
