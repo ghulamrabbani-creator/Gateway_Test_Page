@@ -1,6 +1,8 @@
 // MPGS direct, step 1: create our order row and an MPGS Hosted Session. The browser then loads session.js,
 // collects the card in MPGS-hosted iframes and updates the session; the card never touches this server.
 import { assertProdPayment } from '@/lib/guard';
+import { cleanAgreement } from '@/lib/refs';
+import { freeRef } from '@/lib/orders';
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mpgsCreds, createSession, sessionJsUrl } from '@/lib/mpgs';
@@ -10,7 +12,7 @@ import { shortId, uuid } from '@/lib/crypto';
 export async function POST(req) {
   try {
     const user = requireUser();
-    const { settings = {}, customer = {}, amount: rawAmount } = await req.json();
+    const { settings = {}, customer = {}, amount: rawAmount, merchantRef, agreementId } = await req.json();
     const env = settings.env || 'test';
     await assertEnvAllowed(user, env);
     const c = await mpgsCreds(env);
@@ -22,14 +24,14 @@ export async function POST(req) {
     const withAgreement = saveCard === 'mit' || saveCard === 'citmit';
     const savedToken = (settings.mpgsToken || '').trim();
     const order = {
-      ref: `MP-${shortId()}-${Math.floor(Date.now() / 1000)}`,
+      ref: (await freeRef(merchantRef)) || `MP-${shortId()}-${Math.floor(Date.now() / 1000)}`,
       env, route: 'mpgs',
       operation: settings.operation === 'PreAuthorize' ? 'PreAuthorize' : 'Pay',
       amount, currency: settings.currency || 'AED', customer,
-      options: { ...settings, mpgs: { merchantId: c.merchantId, version: c.version, nonce: uuid(), savedToken: savedToken || null, agreementId: savedToken ? settings.mpgsAgreementId || null : null } },
+      options: { ...settings, mpgs: { merchantId: c.merchantId, version: c.version, nonce: uuid(), savedToken: savedToken || null, agreementId: savedToken ? cleanAgreement(agreementId) || settings.mpgsAgreementId || null : null } },
       token_id: savedToken || null,
-      agreement_id: withAgreement && !savedToken ? `AGR-${shortId()}-${Date.now().toString(36)}` : savedToken ? settings.mpgsAgreementId || null : null,
-      agreement_type: withAgreement && !savedToken ? settings.agreementType || 'Unscheduled' : null,
+      agreement_id: cleanAgreement(agreementId) || (withAgreement && !savedToken ? `AGR-${shortId()}-${Date.now().toString(36)}` : savedToken ? settings.mpgsAgreementId || null : null),
+      agreement_type: withAgreement || (savedToken && (agreementId || settings.mpgsAgreementId)) ? settings.agreementType || 'Unscheduled' : null,
       created_by: user.user,
     };
     const { error } = await db().from('orders').insert(order);

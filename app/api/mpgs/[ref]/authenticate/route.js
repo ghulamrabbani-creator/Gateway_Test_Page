@@ -15,11 +15,12 @@ export async function POST(req, { params }) {
     const { step, browser } = await req.json();
     const m = row.options?.mpgs || {};
     const token = m.savedToken || undefined;
+    const agreement = row.agreement_id ? { id: row.agreement_id, type: String(row.agreement_type || 'Unscheduled').toUpperCase() } : undefined;
 
     if (step === 'initiate') {
       const authTxnId = `3DS-${Date.now().toString(36)}`;
       await patchMpgs(row.ref, { authTxnId, authResult: null });
-      const r = await initiateAuth({ env: row.env, order: row, authTxnId, sessionId: m.sessionId, token, user });
+      const r = await initiateAuth({ env: row.env, order: row, authTxnId, sessionId: m.sessionId, token, agreement, user });
       const rec = r.json?.response?.gatewayRecommendation;
       await patchMpgs(row.ref, { initiate: { result: r.json?.result, recommendation: rec, gatewayCode: r.json?.response?.gatewayCode, version: r.json?.authentication?.version } });
       return Response.json({ ok: r.ok, recommendation: rec, html: r.json?.authentication?.redirect?.html || '', methodSupported: r.json?.authentication?.['3ds2']?.methodSupported, insights: responseInsights({ status: r.status, res_body: r.json, error: r.error }) });
@@ -28,7 +29,7 @@ export async function POST(req, { params }) {
     if (step === 'authenticate') {
       if (!m.authTxnId) throw new HttpError(400, 'Run initiate first.');
       const redirectResponseUrl = `${baseUrlFrom(req, await getConfig())}/api/mpgs/3ds-return?ref=${encodeURIComponent(row.ref)}&n=${m.nonce}`;
-      const r = await authenticatePayer({ env: row.env, order: row, authTxnId: m.authTxnId, sessionId: m.sessionId, token, redirectResponseUrl, browser, ip: clientIp(req), user });
+      const r = await authenticatePayer({ env: row.env, order: row, authTxnId: m.authTxnId, sessionId: m.sessionId, token, agreement, redirectResponseUrl, browser, ip: clientIp(req), user });
       const authStatus = r.json?.transaction?.authenticationStatus || r.json?.order?.authenticationStatus;
       const rec = r.json?.response?.gatewayRecommendation;
       const challenge = authStatus === 'AUTHENTICATION_PENDING';

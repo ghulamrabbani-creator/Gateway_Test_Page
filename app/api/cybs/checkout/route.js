@@ -2,6 +2,7 @@
 // client library, collects the card in CYBS-hosted fields and gets a transient token. Saved cards (TMS instrument
 // identifier) skip Microform.
 import { assertProdPayment } from '@/lib/guard';
+import { freeRef } from '@/lib/orders';
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getConfig, baseUrlFrom } from '@/lib/config';
@@ -12,7 +13,7 @@ import { shortId, uuid } from '@/lib/crypto';
 export async function POST(req) {
   try {
     const user = requireUser();
-    const { settings = {}, customer = {}, amount: rawAmount } = await req.json();
+    const { settings = {}, customer = {}, amount: rawAmount, merchantRef } = await req.json();
     const env = settings.env || 'test';
     await assertEnvAllowed(user, env);
     const c = await cybsCreds(env);
@@ -22,7 +23,7 @@ export async function POST(req) {
     const ii = (settings.cybsIi || '').trim();
     const saveCard = settings.saveCard || 'none';
     const order = {
-      ref: `CY-${shortId()}-${Math.floor(Date.now() / 1000)}`,
+      ref: (await freeRef(merchantRef)) || `CY-${shortId()}-${Math.floor(Date.now() / 1000)}`,
       env, route: 'cybs', operation: settings.operation === 'PreAuthorize' ? 'PreAuthorize' : 'Pay',
       amount, currency: settings.currency || 'AED', customer,
       options: { ...settings, cybs: { merchantId: c.merchantId, nonce: uuid(), savedIi: ii || null, savedExpiry: ii ? settings.cybsExpiry || null : null, txns: [] } },

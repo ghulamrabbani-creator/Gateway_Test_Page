@@ -1,4 +1,6 @@
 import { assertProdPayment } from '@/lib/guard';
+import { cleanAgreement } from '@/lib/refs';
+import { freeRef } from '@/lib/orders';
 import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
 import { getConfig, baseUrlFrom } from '@/lib/config';
 import { db } from '@/lib/db';
@@ -10,7 +12,7 @@ import { shortId, uuid } from '@/lib/crypto';
 export async function POST(req) {
   try {
     const user = requireUser();
-    const { items = {}, settings = {}, customer = {}, customAmount } = await req.json();
+    const { items = {}, settings = {}, customer = {}, customAmount, merchantRef, agreementId } = await req.json();
     const env = settings.env || 'test';
     await assertEnvAllowed(user, env);
     const cfg = await getConfig();
@@ -24,7 +26,7 @@ export async function POST(req) {
 
     const saveCard = settings.saveCard || 'none';
     const order = {
-      ref: `TS-${shortId()}-${Math.floor(Date.now() / 1000)}`,
+      ref: (await freeRef(merchantRef)) || `TS-${shortId()}-${Math.floor(Date.now() / 1000)}`,
       env,
       route: 'geidea',
       operation: settings.operation === 'PreAuthorize' ? 'PreAuthorize' : 'Pay',
@@ -33,7 +35,7 @@ export async function POST(req) {
       customer,
       options: settings,
       token_id: settings.tokenId || null,
-      agreement_id: saveCard === 'mit' || saveCard === 'citmit' ? uuid() : null,
+      agreement_id: saveCard === 'mit' || saveCard === 'citmit' ? cleanAgreement(agreementId) || uuid() : null,
       agreement_type: saveCard === 'mit' || saveCard === 'citmit' ? settings.agreementType || 'Unscheduled' : null,
       created_by: user.user,
     };

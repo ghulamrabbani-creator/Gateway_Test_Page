@@ -5,6 +5,7 @@ import { useSettings, useCart } from '@/lib/clientState';
 import { SettingsChips } from '@/components/SettingsPanel';
 import Insights from '@/components/Insights';
 import { PRODUCTS } from '@/lib/products';
+import { genRef, genAgreement } from '@/lib/refs';
 
 function loadScript(src, ready) {
   return new Promise((resolve, reject) => {
@@ -37,6 +38,8 @@ export default function Checkout() {
   const [cart, setCart] = useCart();
   const [c, setC] = useState({ firstName: 'Ghulam', lastName: 'Rabbani', email: 'test@example.com', phone: '562186147', phoneCountryCode: '+971', city: 'Dubai', street: 'Al Barsha' });
   const [customAmount, setCustomAmount] = useState('');
+  const [merchantRef, setMerchantRef] = useState('');
+  const [agreementId, setAgreementId] = useState('');
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState(null);
   const [dropin, setDropin] = useState(false);
@@ -56,13 +59,16 @@ export default function Checkout() {
   const total = lines.reduce((a, l) => a + l.p.price * l.q, 0);
   const amount = customAmount !== '' ? Number(customAmount) : total;
   const tokenSet = cybs ? s.cybsIi : mpgs ? s.mpgsToken : s.tokenId;
+  const route = cybs ? 'cybs' : mpgs ? 'mpgs' : 'geidea';
+  // Agreement: card saved for MIT (Geidea / MPGS), or a repeat CIT on a saved MPGS token
+  const needsAgreement = !cybs && ((!tokenSet && (s.saveCard === 'mit' || s.saveCard === 'citmit')) || (mpgs && !!s.mpgsToken));
   const cardLabel = `${tokenSet ? `Saved token ${tokenSet.slice(0, 8)}…` : 'New card'}${s.saveCard !== 'none' && !tokenSet ? `, save for ${s.saveCard === 'citmit' ? 'CIT + MIT' : s.saveCard.toUpperCase()}` : ''}`;
 
   // ---------- Geidea PGW (HPP) ----------
   async function payGeidea() {
     setBusy('pay'); setErr(null);
     try {
-      const { ok, j } = await post('/api/checkout', { items: cart.items, settings: s, customer: c, customAmount });
+      const { ok, j } = await post('/api/checkout', { items: cart.items, settings: s, customer: c, customAmount, merchantRef, agreementId: needsAgreement ? agreementId : '' });
       if (!ok) { setErr(j); setBusy(''); return; }
       const go = async (outcome, data) => {
         try { await post('/api/checkout/result', { ref: j.ref, outcome, data: data ?? null }); } catch {}
@@ -86,7 +92,7 @@ export default function Checkout() {
   async function startMpgs() {
     setBusy('session'); setErr(null); setFieldErr({});
     try {
-      const { ok, j } = await post('/api/mpgs/checkout', { settings: s, customer: c, amount });
+      const { ok, j } = await post('/api/mpgs/checkout', { settings: s, customer: c, amount, merchantRef, agreementId: needsAgreement ? agreementId : '' });
       if (!ok) { setErr(j); setBusy(''); return; }
       setMp({ ...j, ready: false });
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -149,7 +155,7 @@ export default function Checkout() {
   async function startCybs() {
     setBusy('session'); setErr(null);
     try {
-      const { ok, j } = await post('/api/cybs/checkout', { settings: s, customer: c, amount });
+      const { ok, j } = await post('/api/cybs/checkout', { settings: s, customer: c, amount, merchantRef });
       if (!ok) { setErr(j); setBusy(''); return; }
       if (j.savedCard) { setCy({ ref: j.ref, savedCard: true, ready: true }); setBusy(''); return; }
       setCy({ ref: j.ref, ready: false });
@@ -221,6 +227,7 @@ export default function Checkout() {
   }
 
   useEffect(() => { setMp(null); setCy(null); }, [s.route, s.env]);
+  useEffect(() => { if (mpgs && s.mpgsToken && s.mpgsAgreementId) setAgreementId(s.mpgsAgreementId); }, [mpgs, s.mpgsToken, s.mpgsAgreementId]);
 
   const f = (k, label, type = 'text') => (<div><label className="f">{label}</label><input type={type} value={c[k]} onChange={(e) => setC({ ...c, [k]: e.target.value })} /></div>);
   const hf = (id, label, key, style) => (
@@ -247,6 +254,24 @@ export default function Checkout() {
               <label className="f" style={{ marginTop: 0 }}>Custom amount</label>
               <input type="number" step="0.01" min="0" value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} placeholder={total.toFixed(2)} />
             </div>
+          </div>
+          <div className="grid g2" style={{ marginTop: 14 }}>
+            <div>
+              <label className="f" style={{ marginTop: 0 }}>Merchant reference</label>
+              <div className="row" style={{ flexWrap: 'nowrap' }}>
+                <input className="mono" placeholder="Blank = generated" value={merchantRef} onChange={(e) => setMerchantRef(e.target.value)} disabled={!!(mp || cy)} />
+                <button type="button" className="ghost" onClick={() => setMerchantRef(genRef(route))} disabled={!!(mp || cy)}>Generate</button>
+              </div>
+            </div>
+            {needsAgreement && (
+              <div>
+                <label className="f" style={{ marginTop: 0 }}>Agreement ID ({s.agreementType || 'Unscheduled'}){mpgs && s.mpgsToken ? ', from the saved card' : ''}</label>
+                <div className="row" style={{ flexWrap: 'nowrap' }}>
+                  <input className="mono" placeholder="Blank = generated" value={agreementId} onChange={(e) => setAgreementId(e.target.value)} disabled={!!(mp || cy)} />
+                  <button type="button" className="ghost" onClick={() => setAgreementId(genAgreement(route))} disabled={!!(mp || cy)}>Generate</button>
+                </div>
+              </div>
+            )}
           </div>
           <dl className="paysum-facts">
             <dt>Route</dt><dd>{cybs ? 'CYBS direct (not in PGW)' : mpgs ? 'MPGS direct (not in PGW)' : 'Geidea PGW'}</dd>
