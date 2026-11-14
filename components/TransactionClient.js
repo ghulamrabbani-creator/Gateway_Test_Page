@@ -45,11 +45,11 @@ const Field = ({ label, children, hint }) => (<div className="fld"><label classN
 const ROUTES = { geidea: 'Geidea PGW', mpgs: 'MPGS direct', cybs: 'CYBS direct' };
 const ENVS = { test: 'Test', staging: 'Staging', production: 'Production' };
 const TYPES = [
-  ['sale', 'Sale', 'Charge a new card now'],
-  ['preauth', 'Pre-auth', 'Hold now, capture later'],
-  ['cit', 'Saved card', 'Customer pays with a token (CIT)'],
-  ['mit', 'Merchant charge', 'Charge a token without the customer (MIT)'],
-  ['save', 'Save card', 'Tokenize without a charge'],
+  ['sale', 'Sale', 'New card, charged now'],
+  ['preauth', 'Pre-auth', 'New card, capture later'],
+  ['cit', 'Token CIT', 'Customer pays with a saved card'],
+  ['mit', 'Token MIT', 'Merchant charges a saved card'],
+  ['save', 'Save card', 'Tokenize, no charge'],
 ];
 const cardText = (t) => [t?.card?.brand, t?.card?.masked && t.card.masked.replace(/\*+/, ' •••• ')].filter(Boolean).join(' ');
 
@@ -100,10 +100,11 @@ export default function TransactionClient({ pub, role, tokens }) {
   const citToken = citSel === 'manual' ? (s.manualToken || '').trim() : citSel?.token_id || '';
   const citCardText = citSel && citSel !== 'manual' ? cardText(citSel) : '';
   const needsAgreement = !cybs && (saveCard === 'mit' || saveCard === 'citmit');
+  const nameMode = s.merchantNameMode || (s.showMerchantName === false ? 'hide' : 'mid');
 
   // What the existing checkout APIs expect (they read token fields from settings)
   function sendSettings() {
-    const base = { ...s, route, operation, auth, saveCard, tokenId: '', mpgsToken: '', mpgsCard: '', mpgsAgreementId: '', cybsIi: '', cybsCard: '', cybsExpiry: null };
+    const base = { ...s, route, operation, auth, saveCard, showMerchantName: nameMode !== 'hide', merchantNameText: nameMode === 'custom' ? (s.merchantNameText || '').trim() : '', tokenId: '', mpgsToken: '', mpgsCard: '', mpgsAgreementId: '', cybsIi: '', cybsCard: '', cybsExpiry: null };
     if (type !== 'cit') return base;
     if (cybs) return { ...base, cybsIi: citToken, cybsCard: citCardText, cybsExpiry: citSel?.card?.expiry || null };
     if (mpgs) return { ...base, mpgsToken: citToken, mpgsCard: citCardText };
@@ -339,7 +340,7 @@ export default function TransactionClient({ pub, role, tokens }) {
   }
 
   // ---------- ticket ----------
-  const tkType = { sale: 'Sale', preauth: 'Pre-auth', cit: operation === 'Pay' ? 'Saved card, sale' : 'Saved card, pre-auth', mit: operation === 'Pay' ? 'Merchant charge, sale' : 'Merchant charge, pre-auth', save: 'Save card, no charge' }[type];
+  const tkType = { sale: 'Sale', preauth: 'Pre-auth', cit: operation === 'Pay' ? 'Token CIT, sale' : 'Token CIT, pre-auth', mit: operation === 'Pay' ? 'Token MIT, sale' : 'Token MIT, pre-auth', save: 'Save card, no charge' }[type];
   const tkCard = type === 'cit' ? (citSel === 'manual' ? (citToken ? `Token ${citToken.slice(0, 10)}…` : 'Paste a token') : citSel ? cardText(citSel) || citSel.token_id.slice(0, 10) : 'Pick a card')
     : type === 'mit' ? (mitSel === 'manual' ? ((s.manualToken || '').trim() ? `Token ${s.manualToken.trim().slice(0, 10)}…` : 'Paste a token') : mitSel ? cardText(mitSel) || mitSel.token_id.slice(0, 10) : 'Pick a card')
     : 'New card';
@@ -357,20 +358,39 @@ export default function TransactionClient({ pub, role, tokens }) {
   const act = type === 'save' ? saveGeidea : type === 'mit' ? chargeMit : mpgs ? startMpgs : cybs ? startCybs : payGeidea;
 
   return (
+    <>
+      <section className="ctx" aria-label="Where the transaction goes">
+        <div className="ctx-group">
+          <span className="ctx-label">Environment</span>
+          <div className="bigseg" role="radiogroup" aria-label="Environment">
+            {[['test', 'Test', 'Test credentials'], ['staging', 'Staging', 'Pre-production'], ['production', 'Production', prodLocked ? 'Admin only' : 'Real money', prodLocked]].map(([k, l, sub, dis]) => (
+              <button type="button" role="radio" aria-checked={env === k} key={k} disabled={dis} className={`big env-${k} ${env === k ? 'on' : ''}`} onClick={() => up('env')(k)}><span className="big-l">{l}</span><span className="big-s">{sub}</span></button>
+            ))}
+          </div>
+        </div>
+        <div className="ctx-group">
+          <span className="ctx-label">Route</span>
+          <div className="bigseg" role="radiogroup" aria-label="Route">
+            {[['geidea', 'Geidea PGW', 'Hosted payment page', false], ['mpgs', 'MPGS direct', mpgsReady ? 'Mastercard Hosted Session' : 'Set up in Admin', !mpgsReady], ['cybs', 'CYBS direct', cybsReady ? 'CyberSource Microform' : 'Set up in Admin', !cybsReady]].map(([k, l, sub, dis]) => (
+              <button type="button" role="radio" aria-checked={route === k} key={k} disabled={dis} className={`big route ${route === k ? 'on' : ''}`} onClick={() => up('route')(k)}><span className="big-l">{l}</span><span className="big-s">{sub}</span></button>
+            ))}
+          </div>
+        </div>
+        {cybs && (
+          <div className="ctx-group">
+            <span className="ctx-label">Decision Manager</span>
+            <div className="bigseg">
+              {[[false, 'Run', 'Fraud screening on'], [true, 'Skip', 'DECISION_SKIP']].map(([k, l, sub]) => (
+                <button type="button" key={String(k)} className={`big route ${!!s.cybsSkipDm === k ? 'on' : ''}`} onClick={() => up('cybsSkipDm')(k)}><span className="big-l">{l}</span><span className="big-s">{sub}</span></button>
+              ))}
+            </div>
+          </div>
+        )}
+        {direct && <p className="ctx-note">No PGW order is created, so nothing is federated to APEX. MID {pub.envs[env]?.[route]?.merchantId}.</p>}
+      </section>
     <div className="txn">
       <div className="builder">
-        <section className="ctx">
-          <Field label="Environment">
-            <Seg value={env} onChange={up('env')} options={[['test', 'Test'], ['staging', 'Staging'], ['production', prodLocked ? 'Production (admin)' : 'Production', prodLocked]]} />
-          </Field>
-          <Field label="Route">
-            <Seg value={route} onChange={up('route')} options={[['geidea', 'Geidea PGW'], ['mpgs', 'MPGS direct', !mpgsReady], ['cybs', 'CYBS direct', !cybsReady]]} />
-          </Field>
-          {cybs && <Field label="Decision Manager"><Seg value={!!s.cybsSkipDm} onChange={up('cybsSkipDm')} options={[[false, 'Run'], [true, 'Skip']]} /></Field>}
-        </section>
-        {direct && <p className="ctx-note">{mpgs ? 'Card fields are served by Mastercard (Hosted Session).' : 'Card fields are served by CyberSource (Microform).'} No PGW order is created, so nothing is federated to APEX. MID {pub.envs[env]?.[route]?.merchantId}.</p>}
-
-        <section className="types" role="radiogroup" aria-label="Transaction type">
+        <section className="types" role="radiogroup" aria-label="Transaction type" style={{ '--n': types.length }}>
           {types.map(([k, name, desc]) => (
             <button type="button" role="radio" aria-checked={type === k} key={k} className={`type ${type === k ? 'on' : ''}`} onClick={() => up('txType')(k)}>
               <span className="type-name">{name}</span>
@@ -451,7 +471,7 @@ export default function TransactionClient({ pub, role, tokens }) {
         </section>
 
         <details className="more">
-          <summary>More options <span className="more-sum">{[s.currency, merchantRef ? 'own reference' : null, `${c.firstName} ${c.lastName}`, !direct && type !== 'mit' ? { modal: 'Modal', dropin: 'Drop-in', redirect: 'Redirect' }[s.mode] : null].filter(Boolean).join(', ')}</span></summary>
+          <summary>More options <span className="more-sum">{[s.currency, merchantRef ? 'own reference' : null, `${c.firstName} ${c.lastName}`, !direct && type !== 'mit' && type !== 'save' ? `${{ modal: 'Modal', dropin: 'Drop-in', redirect: 'Redirect' }[s.mode]} payment page` : null].filter(Boolean).join(', ')}</span></summary>
           <div className="more-body">
             <div className="opt-row">
               <Field label="Currency"><select value={s.currency} onChange={(e) => up('currency')(e.target.value)}>{ccys.map((x) => <option key={x}>{x}</option>)}</select></Field>
@@ -477,26 +497,48 @@ export default function TransactionClient({ pub, role, tokens }) {
               <h3>Geidea payment page</h3>
               <div className="opt-row">
                 <Field label="Checkout mode"><Seg value={s.mode} onChange={up('mode')} options={[['modal', 'Modal'], ['dropin', 'Drop-in'], ['redirect', 'Redirect']]} /></Field>
-                <Field label="Style"><Seg value={s.hppProfile} onChange={up('hppProfile')} options={[['simple', 'Simple'], ['compressed', 'Compressed']]} /></Field>
-                <Field label="Language"><Seg value={s.language} onChange={up('language')} options={[['en', 'EN'], ['ar', 'AR']]} /></Field>
-                <Field label="Wallet buttons"><Seg value={s.hideWallets} onChange={up('hideWallets')} options={[[false, 'Show'], [true, 'Hide']]} /></Field>
+                <Field label="Page style"><Seg value={s.hppProfile} onChange={up('hppProfile')} options={[['simple', 'Simple'], ['compressed', 'Compressed']]} /></Field>
+                <Field label="Language"><Seg value={s.language} onChange={up('language')} options={[['en', 'English'], ['ar', 'Arabic']]} /></Field>
+              </div>
+              <h3>Branding</h3>
+              <div className="opt-row">
+                <Field label="Merchant name"><Seg value={nameMode} onChange={up('merchantNameMode')} options={[['mid', 'From Admin'], ['custom', 'Custom'], ['hide', 'Hide']]} /></Field>
+                {nameMode === 'custom' && <Field label="Name shown"><input value={s.merchantNameText || ''} placeholder="Gateway test bench" onChange={(e) => up('merchantNameText')(e.target.value)} /></Field>}
+                <Field label="Merchant logo URL" hint="HTTPS image. Blank = no logo."><input className="mono" placeholder="https://…/logo.png" value={s.logoUrl || ''} onChange={(e) => up('logoUrl')(e.target.value.trim())} style={{ minWidth: 280 }} /></Field>
               </div>
               <div className="opt-row">
-                {[['showEmail', 'Email field'], ['showPhone', 'Phone field'], ['showAddress', 'Address field'], ['receiptPage', 'Receipt page'], ['showMerchantName', 'Merchant name']].map(([k, l]) => (
-                  <Field key={k} label={l}><Seg value={!!s[k]} onChange={up(k)} options={[[true, 'Show'], [false, 'Hide']]} /></Field>
-                ))}
                 <Field label="Geidea logo"><Seg value={!!s.hideGeideaLogo} onChange={up('hideGeideaLogo')} options={[[false, 'Show'], [true, 'Hide']]} /></Field>
                 <Field label="Header colour">
-                  <div className="row nowrap"><input type="color" value={s.headerColor || '#ffffff'} onChange={(e) => up('headerColor')(e.target.value)} style={{ width: 56, padding: 2 }} />{s.headerColor && <button type="button" className="ghost" onClick={() => up('headerColor')('')}>Default</button>}</div>
+                  <div className="row nowrap"><input type="color" value={s.headerColor || '#ffffff'} onChange={(e) => up('headerColor')(e.target.value)} style={{ width: 56, padding: 2 }} />{s.headerColor ? <button type="button" className="ghost" onClick={() => up('headerColor')('')}>Default</button> : <span className="hint" style={{ margin: 0 }}>Default</span>}</div>
                 </Field>
               </div>
+              <h3>Fields on the page</h3>
+              <div className="opt-row">
+                {[['showEmail', 'Email'], ['showPhone', 'Phone'], ['showAddress', 'Address'], ['receiptPage', 'Receipt page']].map(([k, l]) => (
+                  <Field key={k} label={l}><Seg value={!!s[k]} onChange={up(k)} options={[[true, 'Show'], [false, 'Hide']]} /></Field>
+                ))}
+              </div>
+              <h3>Wallets</h3>
+              <div className="opt-row">
+                {[['apple-pay', 'Apple Pay'], ['google-pay', 'Google Pay'], ['samsung-pay', 'Samsung Pay']].map(([w, l]) => {
+                  const hidden = s.hideWallets === true || (Array.isArray(s.hideWallets) && s.hideWallets.includes(w));
+                  const set = (show) => setS((p) => { const cur = p.hideWallets === true ? ['apple-pay', 'google-pay', 'samsung-pay'] : Array.isArray(p.hideWallets) ? p.hideWallets : []; const next = show ? cur.filter((x) => x !== w) : Array.from(new Set([...cur, w])); return { ...p, hideWallets: next }; });
+                  return <Field key={w} label={l}><Seg value={!hidden} onChange={set} options={[[true, 'Show'], [false, 'Hide']]} /></Field>;
+                })}
+                <Field label="Express checkout" hint="Wallet buttons shown before the card form (expressCheckouts)."><Seg value={s.express || 'none'} onChange={up('express')} options={[['none', 'Off'], ['google-pay', 'Google Pay'], ['apple-pay', 'Apple Pay']]} /></Field>
+              </div>
+              <h3>Order data</h3>
+              <div className="opt-row">
+                <Field label="Order items" hint="Sends one item for the full amount in order.items (Tabby / Tamara need items)."><Seg value={!!s.sendItems} onChange={up('sendItems')} options={[[false, 'Off'], [true, 'Send']]} /></Field>
+                <Field label="Fee program indicator" hint="processingInformation.feeProgramIndicator, e.g. AE3. Blank = not sent."><input className="mono" maxLength={3} placeholder="AE3" value={s.feeProgram || ''} onChange={(e) => up('feeProgram')(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} style={{ width: 120 }} /></Field>
+              </div>
             </>)}
-            {(type === 'mit' || type === 'save') && <p className="hint">{type === 'mit' ? 'No customer, reference or page options: the merchant charge is sent straight to the gateway.' : 'The save-card form uses default page options.'}</p>}
+            {(type === 'mit' || type === 'save') && <p className="hint">{type === 'mit' ? 'No customer, reference or page options: the merchant charge is sent straight to the gateway.' : 'Geidea\'s save-card session takes no page options (body: currency and callback only), so the form uses its defaults.'}</p>}
           </div>
         </details>
       </div>
 
-      <aside className={`ticket ${env === 'production' ? 'prod' : ''}`} aria-label="Transaction ticket">
+      <aside className={`ticket env-${env}`} aria-label="Transaction ticket">
         <div className="tk-paper">
           <div className="tk-head">
             <span>{ROUTES[route]}</span>
@@ -584,5 +626,6 @@ export default function TransactionClient({ pub, role, tokens }) {
       </aside>
       <div ref={methodRef} style={{ display: 'none' }} aria-hidden="true" />
     </div>
+    </>
   );
 }
