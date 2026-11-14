@@ -28,10 +28,12 @@ export async function POST(req) {
       env, route: 'mpgs',
       operation: settings.operation === 'PreAuthorize' ? 'PreAuthorize' : 'Pay',
       amount, currency: settings.currency || 'AED', customer,
-      options: { ...settings, mpgs: { merchantId: c.merchantId, version: c.version, nonce: uuid(), savedToken: savedToken || null, agreementId: savedToken ? cleanAgreement(agreementId) || settings.mpgsAgreementId || null : null } },
+      options: { ...settings, mpgs: { merchantId: c.merchantId, version: c.version, nonce: uuid(), savedToken: savedToken || null, agreementId: null } },
       token_id: savedToken || null,
-      agreement_id: cleanAgreement(agreementId) || (withAgreement && !savedToken ? `AGR-${shortId()}-${Date.now().toString(36)}` : savedToken ? settings.mpgsAgreementId || null : null),
-      agreement_type: withAgreement || (savedToken && (agreementId || settings.mpgsAgreementId)) ? settings.agreementType || 'Unscheduled' : null,
+      // Repeat CIT on a saved token carries no agreement: MPGS requires transaction.source MERCHANT on any later payment
+      // with the same agreement.id (MP-9E43BD60 / MP-035D7E7F, 14-Nov). The agreement belongs to the first CIT and the MITs.
+      agreement_id: withAgreement && !savedToken ? cleanAgreement(agreementId) || `AGR-${shortId()}-${Date.now().toString(36)}` : null,
+      agreement_type: withAgreement && !savedToken ? settings.agreementType || 'Unscheduled' : null,
       created_by: user.user,
     };
     const { error } = await db().from('orders').insert(order);

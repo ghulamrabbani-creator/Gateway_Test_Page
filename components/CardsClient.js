@@ -89,7 +89,7 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
     onChanged();
   }
   function payCit() {
-    setS(isCybs ? { ...s, route: 'cybs', cybsIi: t.token_id, cybsExpiry: t.card?.expiry || null, saveCard: 'none', env: t.env, auth: '3ds' } : isMpgs ? { ...s, route: 'mpgs', mpgsToken: t.token_id, mpgsAgreementId: t.agreement_id || '', saveCard: 'none', env: t.env, auth: '3ds' } : { ...s, route: 'geidea', tokenId: t.token_id, env: t.env, auth: '3ds' });
+    setS(isCybs ? { ...s, route: 'cybs', cybsIi: t.token_id, cybsCard: [t.card?.brand, t.card?.masked].filter(Boolean).join(' '), cybsExpiry: t.card?.expiry || null, saveCard: 'none', env: t.env, auth: '3ds' } : isMpgs ? { ...s, route: 'mpgs', mpgsToken: t.token_id, mpgsCard: [t.card?.brand, t.card?.masked].filter(Boolean).join(' '), mpgsAgreementId: '', saveCard: 'none', env: t.env, auth: '3ds' } : { ...s, route: 'geidea', tokenId: t.token_id, env: t.env, auth: '3ds' });
     router.push('/checkout');
   }
   async function remove() {

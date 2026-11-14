@@ -61,7 +61,8 @@ export default function Checkout() {
   const tokenSet = cybs ? s.cybsIi : mpgs ? s.mpgsToken : s.tokenId;
   const route = cybs ? 'cybs' : mpgs ? 'mpgs' : 'geidea';
   // Agreement: card saved for MIT (Geidea / MPGS), or a repeat CIT on a saved MPGS token
-  const needsAgreement = !cybs && ((!tokenSet && (s.saveCard === 'mit' || s.saveCard === 'citmit')) || (mpgs && !!s.mpgsToken));
+  // (repeat CITs on a saved MPGS token carry no agreement: MPGS treats later payments on an agreement as MITs)
+  const needsAgreement = !cybs && !tokenSet && (s.saveCard === 'mit' || s.saveCard === 'citmit');
   const cardLabel = `${tokenSet ? `Saved token ${tokenSet.slice(0, 8)}…` : 'New card'}${s.saveCard !== 'none' && !tokenSet ? `, save for ${s.saveCard === 'citmit' ? 'CIT + MIT' : s.saveCard.toUpperCase()}` : ''}`;
 
   // ---------- Geidea PGW (HPP) ----------
@@ -227,7 +228,6 @@ export default function Checkout() {
   }
 
   useEffect(() => { setMp(null); setCy(null); }, [s.route, s.env]);
-  useEffect(() => { if (mpgs && s.mpgsToken && s.mpgsAgreementId) setAgreementId(s.mpgsAgreementId); }, [mpgs, s.mpgsToken, s.mpgsAgreementId]);
 
   const f = (k, label, type = 'text') => (<div><label className="f">{label}</label><input type={type} value={c[k]} onChange={(e) => setC({ ...c, [k]: e.target.value })} /></div>);
   const hf = (id, label, key, style) => (
@@ -277,7 +277,7 @@ export default function Checkout() {
             <dt>Route</dt><dd>{cybs ? 'CYBS direct (not in PGW)' : mpgs ? 'MPGS direct (not in PGW)' : 'Geidea PGW'}</dd>
             <dt>Operation</dt><dd>{OP[s.operation]}</dd>
             <dt>Authentication</dt><dd>{AUTH[direct ? s.auth : s.auth === 'moto' ? 'moto' : '3ds']}</dd>
-            <dt>Card</dt><dd>{cardLabel}</dd>
+            <dt>Card</dt><dd>{cardLabel}{mpgs && s.mpgsToken && s.mpgsCard ? ` · ${s.mpgsCard}` : cybs && s.cybsIi && s.cybsCard ? ` · ${s.cybsCard}` : ''}</dd>
           </dl>
 
           {!direct && <button onClick={payGeidea} disabled={!!busy || !(amount > 0)}>{busy ? 'Opening payment page…' : `Pay ${s.currency} ${(amount || 0).toFixed(2)}`}</button>}
@@ -298,7 +298,7 @@ export default function Checkout() {
                 </div>
                 {hf('mp-name', 'Name on card', 'nameOnCard')}
               </>)}
-              {mp.cvvOnly && hf('mp-csc', `CVV for token ${s.mpgsToken.slice(0, 8)}…`, 'securityCode', { maxWidth: 200 })}
+              {mp.cvvOnly && hf('mp-csc', `CVV for ${s.mpgsCard || 'the saved card'} (token ${s.mpgsToken.slice(0, 8)}…)`, 'securityCode', { maxWidth: 200 })}
               <div className="row" style={{ marginTop: 16 }}>
                 <button onClick={submitCard} disabled={!mp.ready || !!busy}>{!mp.ready ? 'Loading card form…' : busy === 'pay' ? 'Working…' : `Pay ${s.currency} ${(amount || 0).toFixed(2)}`}</button>
                 <button className="ghost" onClick={() => setMp(null)} disabled={busy === 'pay'}>Start over</button>

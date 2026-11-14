@@ -80,10 +80,10 @@ export default function SettingsPanel({ s, set, pub, role }) {
       </>) : mpgs ? (<>
         <div className="row">
           <input className="mono" placeholder="MPGS token" value={s.mpgsToken} onChange={(e) => up('mpgsToken')(e.target.value)} style={{ flex: 1 }} />
-          {s.mpgsToken && <button type="button" className="ghost" onClick={() => set({ ...s, mpgsToken: '', mpgsAgreementId: '' })}>Clear</button>}
+          {s.mpgsToken && <button type="button" className="ghost" onClick={() => set({ ...s, mpgsToken: '', mpgsCard: '', mpgsAgreementId: '' })}>Clear</button>}
         </div>
-        {s.mpgsToken && <input className="mono" style={{ marginTop: 6 }} placeholder="Agreement ID (optional)" value={s.mpgsAgreementId} onChange={(e) => up('mpgsAgreementId')(e.target.value)} />}
-        <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>With a token set, the card form asks only for CVV. Sent as storedOnFile STORED.</p>
+        {s.mpgsToken && s.mpgsCard && <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>{s.mpgsCard}</p>}
+        <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>With a token set, the card form asks only for CVV. Sent as storedOnFile STORED, transaction.source INTERNET, no agreement (MPGS treats later payments on an agreement as MITs).</p>
       </>) : (<>
       <div className="row">
         <input placeholder="Geidea tokenId" value={s.tokenId} onChange={(e) => up('tokenId')(e.target.value)} style={{ flex: 1 }} />
