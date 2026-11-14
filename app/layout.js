@@ -20,8 +20,7 @@ export default function RootLayout({ children }) {
           <header className="top">
             <div className="bar">
               <Link href="/" className="logo">Gateway test bench</Link>
-              <Link href="/">Shop</Link>
-              <Link href="/checkout">Checkout</Link>
+              <Link href="/">New transaction</Link>
               <Link href="/cards">Saved cards</Link>
               <Link href="/orders">Orders</Link>
               <Link href="/lookup">Order lookup</Link>

@@ -18,7 +18,7 @@ export default function CybsComplete({ refId, amount, needsValidate, initial }) 
       <p className="sub mono">{refId} · {amount}</p>
       {res?.error && <div className="msg bad">{res.error}</div>}
       {res?.insights && <div className="card"><h2>Key insights</h2><Insights items={res.insights} /></div>}
-      {!busy && <div className="row"><Link className="btn" href={`/orders/${encodeURIComponent(refId)}`}>Manage order and see API calls</Link><Link className="btn ghost" href="/checkout">New payment</Link></div>}
+      {!busy && <div className="row"><Link className="btn" href={`/orders/${encodeURIComponent(refId)}`}>Manage order and see API calls</Link><Link className="btn ghost" href="/">New payment</Link></div>}
     </div>
   );
 }

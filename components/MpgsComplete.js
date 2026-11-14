@@ -37,7 +37,7 @@ export default function MpgsComplete({ refId, amount, auth, paid, initiate, auth
       {res?.error && <div className="msg bad">{res.error}</div>}
       {res?.token && <div className="msg good">Card saved as MPGS token <span className="mono">{res.token}</span>. See <Link href="/cards">Saved cards</Link>.</div>}
       {res?.insights && <div className="card"><h2>Key insights</h2><Insights items={res.insights} /></div>}
-      {(res || paid) && <div className="row"><Link className="btn" href={`/orders/${encodeURIComponent(refId)}`}>Manage order and see API calls</Link><Link className="btn ghost" href="/checkout">New payment</Link></div>}
+      {(res || paid) && <div className="row"><Link className="btn" href={`/orders/${encodeURIComponent(refId)}`}>Manage order and see API calls</Link><Link className="btn ghost" href="/">New payment</Link></div>}
     </div>
   );
 }

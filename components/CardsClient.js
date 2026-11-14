@@ -5,16 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useSettings } from '@/lib/clientState';
 import Insights from './Insights';
 
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (window.GeideaCheckout && window.__gdSdk === src) return resolve();
-    const el = document.createElement('script');
-    el.src = src;
-    el.onload = () => { window.__gdSdk = src; resolve(); };
-    el.onerror = () => reject(new Error(`Could not load ${src}`));
-    document.head.appendChild(el);
-  });
-}
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(async (r) => ({ ok: r.ok, j: await r.json().catch(() => ({})) }));
 
 const STATUS = {
@@ -37,11 +27,9 @@ function CardFace({ t }) {
   );
 }
 
-function SavedCard({ t, s, setS, ccys, onChanged }) {
+function SavedCard({ t, s, setS, onChanged }) {
   const router = useRouter();
   const [busy, setBusy] = useState('');
-  const [mitOpen, setMitOpen] = useState(false);
-  const [mit, setMit] = useState({ amount: '1.00', currency: 'AED', operation: 'Pay' });
   const [result, setResult] = useState(null);
   const [st, tone] = STATUS[t.status] || [t.status, ''];
   const isMpgs = t.route === 'mpgs';
@@ -72,25 +60,10 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
     setResult(ok ? { insights: j.insights } : { error: j.error, insights: j.insights });
     onChanged();
   }
-  async function chargeMit() {
-    let confirmed = false;
-    if (t.env === 'production') {
-      confirmed = window.confirm(`Charge ${mit.currency} ${Number(mit.amount || 0).toFixed(2)} to ${t.card?.masked || 'this card'} without the customer?\n\nThis is Production: real money.`);
-      if (!confirmed) return;
-    }
-    setBusy('mit'); setResult(null);
-    const { ok, j } = isCybs
-      ? await post('/api/tokens/cybs-mit', { confirmed, env: t.env, iiId: t.token_id, expiry: t.card?.expiry, ntid: t.agreement_id, amount: mit.amount, currency: mit.currency, operation: mit.operation, skipDm: mit.skipDm !== false })
-      : isMpgs
-      ? await post('/api/tokens/mpgs-mit', { confirmed, env: t.env, token: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit })
-      : await post('/api/tokens/mit', { confirmed, env: t.env, tokenId: t.token_id, agreementId: t.agreement_id, agreementType: t.agreement_type || 'Unscheduled', ...mit });
-    setBusy('');
-    setResult(ok ? { ref: j.ref, insights: j.insights } : { error: j.error });
-    onChanged();
-  }
-  function payCit() {
-    setS(isCybs ? { ...s, route: 'cybs', cybsIi: t.token_id, cybsCard: [t.card?.brand, t.card?.masked].filter(Boolean).join(' '), cybsExpiry: t.card?.expiry || null, saveCard: 'none', env: t.env, auth: '3ds' } : isMpgs ? { ...s, route: 'mpgs', mpgsToken: t.token_id, mpgsCard: [t.card?.brand, t.card?.masked].filter(Boolean).join(' '), mpgsAgreementId: '', saveCard: 'none', env: t.env, auth: '3ds' } : { ...s, route: 'geidea', tokenId: t.token_id, env: t.env, auth: '3ds' });
-    router.push('/checkout');
+  // R19: payments start on the Transaction page with this card picked
+  function openTxn(txType) {
+    setS({ ...s, env: t.env, route: t.route || 'geidea', txType, [txType === 'mit' ? 'mitId' : 'citId']: t.id });
+    router.push('/');
   }
   async function remove() {
     await fetch(`/api/tokens/${t.id}`, { method: 'DELETE' });
@@ -122,24 +95,13 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
           {t.last_used_at && (<><dt>Last used</dt><dd>{new Date(t.last_used_at).toLocaleString()} on <Link href={`/orders/${t.last_used_ref}`} className="mono">{t.last_used_ref}</Link></dd></>)}
         </dl>
         <div className="row">
-          {canCit && t.usage !== 'MIT' && <button onClick={payCit}>Pay with this card (CIT)</button>}
-          {canMit && <button className={mitOpen ? 'ghost' : ''} onClick={() => setMitOpen(!mitOpen)}>{mitOpen ? 'Close MIT' : 'Charge without the customer (MIT)'}</button>}
+          {canCit && t.usage !== 'MIT' && <button onClick={() => openTxn('cit')}>Pay with this card (CIT)</button>}
+          {canMit && <button onClick={() => openTxn('mit')}>Charge without the customer (MIT)</button>}
           {t.status !== 'ACTIVE' && !isMpgs && <button className="ghost" disabled={!!busy} onClick={check}>{busy === 'check' ? 'Checking…' : 'Check status with Geidea'}</button>}
           {isMpgs && !t.token_id && t.order_ref && <button disabled={!!busy} onClick={retryToken}>{busy === 'retry' ? 'Tokenizing…' : 'Retry token creation'}</button>}
           {t.token_id && <button className="ghost" disabled={!!busy} onClick={checkScheme}>{busy === 'scheme' ? `Asking ${gwName}…` : `Check network token on ${gwName}`}</button>}
         </div>
-        {t.status === 'ACTIVE' && t.usage !== 'CIT' && !t.agreement_id && <p className="sc-note">No MIT agreement is stored for this card, so it can't be charged without the customer. Save it during a payment with Save card set to MIT.</p>}
-        {mitOpen && (
-          <div className="sc-mit">
-            <div className="grid g3">
-              <div><label className="f">Amount</label><input value={mit.amount} onChange={(e) => setMit({ ...mit, amount: e.target.value })} /></div>
-              <div><label className="f">Currency</label><select value={mit.currency} onChange={(e) => setMit({ ...mit, currency: e.target.value })}>{ccys.map((c) => <option key={c}>{c}</option>)}</select></div>
-              <div><label className="f">Operation</label><select value={mit.operation} onChange={(e) => setMit({ ...mit, operation: e.target.value })}><option value="Pay">Sale</option><option value="PreAuthorize">Pre-auth</option></select></div>
-            </div>
-            {isCybs && <label className="row" style={{ marginTop: 10, fontSize: 14 }}><input type="checkbox" style={{ width: 'auto' }} checked={mit.skipDm !== false} onChange={(e) => setMit({ ...mit, skipDm: e.target.checked })} /> Skip Decision Manager (actionList DECISION_SKIP)</label>}
-            <div style={{ marginTop: 12 }}><button disabled={!!busy} onClick={chargeMit}>{busy === 'mit' ? 'Charging…' : `Charge ${mit.currency} ${Number(mit.amount || 0).toFixed(2)}`}</button></div>
-          </div>
-        )}
+        {t.status === 'ACTIVE' && t.usage !== 'CIT' && !t.agreement_id && <p className="sc-note">No MIT agreement is stored for this card, so it can't be charged without the customer. Save a card during a Sale with Save the card set to For MIT.</p>}
         {result?.error && <div className="msg bad">{result.error}</div>}
         {result?.ref && <p>MIT order <Link className="mono" href={`/orders/${result.ref}`}>{result.ref}</Link></p>}
         {result?.insights && <Insights items={result.insights} />}
@@ -151,84 +113,24 @@ function SavedCard({ t, s, setS, ccys, onChanged }) {
 export default function CardsClient({ tokens, pub }) {
   const router = useRouter();
   const [s, setS] = useSettings();
-  const [usage, setUsage] = useState('CIT');
-  const [currency, setCurrency] = useState('AED');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-  const [manual, setManual] = useState({ tokenId: '', agreementId: '', agreementType: 'Unscheduled', amount: '1.00', currency: 'AED', operation: 'Pay' });
-  const [manualRes, setManualRes] = useState(null);
-  const ccys = Array.from(new Set(['AED', ...pub.currencies]));
-
   // Redirect flow: /cards?saved=<ref> → ask Geidea for the result straight away
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('saved');
     if (ref) post('/api/tokens/check', { ref }).then(() => { window.history.replaceState(null, '', '/cards'); router.refresh(); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function saveNew() {
-    setBusy(true); setErr(null);
-    try {
-      const { ok, j } = await post('/api/tokens/save', { env: s.env, usage, currency });
-      if (!ok) { setErr({ error: j.error, insights: j.insights }); return; }
-      await loadScript(j.sdkUrl);
-      const done = (outcome) => async (data) => { await post('/api/tokens/check', { ref: j.ref, outcome, data: data ?? null }); router.refresh(); };
-      new window.GeideaCheckout(done('success'), done('error'), done('cancel')).startPayment(j.sessionId);
-    } catch (e) { setErr({ error: e.message }); } finally { setBusy(false); }
-  }
-  async function chargeManual() {
-    let confirmed = false;
-    if (s.env === 'production') { confirmed = window.confirm(`Charge ${manual.currency} ${Number(manual.amount || 0).toFixed(2)} to token ${manual.tokenId.slice(0, 8)}… without the customer?\n\nThis is Production: real money.`); if (!confirmed) return; }
-    const { ok, j } = await post('/api/tokens/mit', { confirmed, env: s.env, ...manual });
-    setManualRes(ok ? { ref: j.ref, insights: j.insights } : { error: j.error });
-    router.refresh();
-  }
-
   const active = tokens.filter((t) => t.status === 'ACTIVE');
   const other = tokens.filter((t) => t.status !== 'ACTIVE');
   return (
     <div>
       <h1>Saved cards</h1>
-      <p className="sub">Cards saved as Geidea tokens or, through MPGS direct, as MPGS tokens. Pay with one as the customer (CIT), charge it without the customer (MIT) when it has an agreement, or ask MPGS whether a network token sits behind it.</p>
+      <p className="sub">Cards saved as Geidea tokens or, through MPGS direct, as MPGS tokens. Check a card's network token, or start a customer payment (CIT) or merchant charge (MIT) with it on the New transaction page.</p>
 
-      <div className="grid cards-layout">
-        <div>
-          {!tokens.length && <div className="card"><p style={{ margin: 0 }}>No saved cards yet. Save one on the right, or tick Save card in the shop settings before paying.</p></div>}
-          {active.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} ccys={ccys} onChanged={() => router.refresh()} />)}
-          {other.length > 0 && <h2 style={{ marginTop: 24 }}>Not ready</h2>}
-          {other.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} ccys={ccys} onChanged={() => router.refresh()} />)}
-        </div>
-
-        <div>
-          <div className="card">
-            <h2>Save a new card</h2>
-            <p className="muted" style={{ fontSize: 14, marginTop: 0 }}>Opens the Geidea card form without charging anything. Uses the {s.env} credentials. To save an MPGS token, pay through MPGS direct with Save card on.</p>
-            <label className="f">The card will be used for</label>
-            <div className="seg">
-              {[['CIT', 'Customer payments'], ['MIT', 'Merchant charges'], ['CIT+MIT', 'Both']].map(([v, l]) => <button key={v} type="button" className={usage === v ? 'on' : ''} onClick={() => setUsage(v)}>{l}</button>)}
-            </div>
-            {usage !== 'CIT' && <p className="sc-note">Merchant charges need an agreement ID. A stand-alone save doesn't create one, so save during a payment instead (shop settings: Save card set to MIT).</p>}
-            <label className="f">Currency</label>
-            <select value={currency} onChange={(e) => setCurrency(e.target.value)}>{ccys.map((c) => <option key={c}>{c}</option>)}</select>
-            <div style={{ marginTop: 14 }}><button disabled={busy} onClick={saveNew}>{busy ? 'Opening card form…' : 'Open card form'}</button></div>
-            {err && <div style={{ marginTop: 10 }}><div className="msg bad">{err.error}</div>{err.insights && <Insights items={err.insights} />}</div>}
-          </div>
-
-          <details className="card">
-            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Charge a token that isn't in this list (MIT)</summary>
-            <label className="f">Token ID</label><input className="mono" value={manual.tokenId} onChange={(e) => setManual({ ...manual, tokenId: e.target.value })} />
-            <label className="f">Agreement ID</label><input className="mono" value={manual.agreementId} onChange={(e) => setManual({ ...manual, agreementId: e.target.value })} />
-            <div className="grid g2">
-              <div><label className="f">Amount</label><input value={manual.amount} onChange={(e) => setManual({ ...manual, amount: e.target.value })} /></div>
-              <div><label className="f">Currency</label><select value={manual.currency} onChange={(e) => setManual({ ...manual, currency: e.target.value })}>{ccys.map((c) => <option key={c}>{c}</option>)}</select></div>
-            </div>
-            <label className="f">Agreement type</label>
-            <select value={manual.agreementType} onChange={(e) => setManual({ ...manual, agreementType: e.target.value })}><option>Unscheduled</option><option>Recurring</option></select>
-            <div style={{ marginTop: 12 }}><button onClick={chargeManual} disabled={!manual.tokenId || !manual.agreementId}>Charge</button></div>
-            {manualRes?.error && <div className="msg bad">{manualRes.error}</div>}
-            {manualRes?.ref && <p>MIT order <Link className="mono" href={`/orders/${manualRes.ref}`}>{manualRes.ref}</Link></p>}
-            {manualRes?.insights && <Insights items={manualRes.insights} />}
-          </details>
-        </div>
+      <div>
+        {!tokens.length && <div className="card"><p style={{ margin: 0 }}>No saved cards yet. On <Link href="/">New transaction</Link>, run a Sale with Save the card on, or pick Save card.</p></div>}
+        {active.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} onChanged={() => router.refresh()} />)}
+        {other.length > 0 && <h2 style={{ marginTop: 24 }}>Not ready</h2>}
+        {other.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} onChanged={() => router.refresh()} />)}
       </div>
     </div>
   );
