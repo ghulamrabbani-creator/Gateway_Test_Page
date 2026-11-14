@@ -84,14 +84,14 @@ tr:last-child td { border-bottom: 0; }
 /* the transaction slip: key insights printed like a terminal receipt */
 .slip { position: relative; max-width: 760px; background: var(--slip); color: var(--slip-ink); font-family: var(--mono); font-size: 13px; line-height: 1.45; padding: 14px 18px 20px; border: 1px solid #e3e3dc; border-bottom: 0; margin-bottom: 14px; }
 .slip::after { content: ''; position: absolute; left: -1px; right: -1px; bottom: -10px; height: 10px; background: linear-gradient(-45deg, transparent 7px, var(--slip) 0) 0 0 / 14px 10px repeat-x, linear-gradient(45deg, transparent 7px, var(--slip) 0) 0 0 / 14px 10px repeat-x; }
-.slip-line { display: grid; grid-template-columns: 22px minmax(120px, 190px) 1fr; gap: 0 10px; padding: 7px 0; border-bottom: 1px dashed #cfcfc6; }
+.slip-line { display: grid; grid-template-columns: 30px minmax(120px, 190px) 1fr; align-items: start; gap: 0 10px; padding: 7px 0; border-bottom: 1px dashed #cfcfc6; }
 .slip-line:last-child { border-bottom: 0; }
-.slip-line .mk { font-weight: 600; }
+.slip-line .mk { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 14px; font-weight: 700; line-height: 1; font-family: var(--sans); margin-top: -1px; }
 .slip-line .k { color: #6b6f73; }
 .slip-line .v { font-weight: 600; }
 .slip-line .n { grid-column: 3; color: #6b6f73; font-size: 12px; font-weight: 400; margin-top: 2px; }
-.slip-line.good .mk { color: var(--good); } .slip-line.bad .mk, .slip-line.bad .v { color: var(--bad); } .slip-line.warn .mk { color: var(--warn); } .slip-line.info .mk { color: #9aa0a6; }
-@media (max-width: 600px) { .slip-line { grid-template-columns: 18px 1fr; } .slip-line .v, .slip-line .n { grid-column: 2; } }
+.slip-line.good .mk { color: #fff; background: var(--good); } .slip-line.bad .mk { color: #fff; background: var(--bad); } .slip-line.bad .v { color: var(--bad); } .slip-line.warn .mk { color: #fff; background: #c98a00; } .slip-line.info .mk { color: #6b6f73; background: #e4e6e2; }
+@media (max-width: 600px) { .slip-line { grid-template-columns: 26px 1fr; } .slip-line .v, .slip-line .n { grid-column: 2; } }
 
 pre.json { background: #121a23; color: #d6e0ea; padding: 12px 14px; border-radius: var(--r); overflow: auto; max-height: 440px; font-family: var(--mono); font-size: 12px; margin: 6px 0 0; }
 details.call { border: 1px solid var(--line); border-radius: var(--r); margin-bottom: 8px; background: #fff; }
