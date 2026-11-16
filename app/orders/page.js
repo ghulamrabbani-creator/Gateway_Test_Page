@@ -24,7 +24,17 @@ export default async function Orders({ searchParams }) {
   if (!user) redirect('/login');
   const page = Math.max(1, Number(searchParams.page || 1));
   const size = 30;
-  const { data, count } = await db().from('orders').select('ref,env,route,operation,amount,currency,status,detailed_status,options,customer,created_by,created_at,geidea_order_id,last_order', { count: 'exact' }).order('created_at', { ascending: false }).range((page - 1) * size, page * size - 1);
+  const { data, count } = await db().from('orders').select('ref,env,route,operation,amount,currency,status,detailed_status,options,customer,created_by,created_at,geidea_order_id,last_order,token_id', { count: 'exact' }).order('created_at', { ascending: false }).range((page - 1) * size, page * size - 1);
+  // R21: orders are shared; show the saved card each one saved or used, with its owner, as information
+  const rows = data || [];
+  const tokIds = [...new Set(rows.map((o) => o.token_id).filter(Boolean))];
+  const refs = rows.map((o) => o.ref);
+  const [{ data: byTok }, { data: byRef }] = await Promise.all([
+    tokIds.length ? db().from('tokens').select('token_id,order_ref,card,created_by').in('token_id', tokIds) : { data: [] },
+    refs.length ? db().from('tokens').select('token_id,order_ref,card,created_by').in('order_ref', refs) : { data: [] },
+  ]);
+  const cardFor = (o) => (byRef || []).find((t) => t.order_ref === o.ref) || (o.token_id && (byTok || []).find((t) => t.token_id === o.token_id)) || null;
+  const last4 = (t) => (t?.card?.masked ? `••${String(t.card.masked).slice(-4)}` : t?.token_id ? `${t.token_id.slice(0, 8)}…` : 'pending');
   return (
     <div>
       <h1>Orders</h1>
@@ -37,7 +47,7 @@ export default async function Orders({ searchParams }) {
               <tr key={o.ref}>
                 <td className="mono"><Link href={`/orders/${o.ref}`}>{o.ref}</Link>{gatewayId(o) && <div className="muted" style={{ fontSize: 11 }} title={o.route === 'cybs' ? 'CYBS payment ID' : 'Geidea order ID'}>{gatewayId(o)}</div>}</td>
                 <td><span className={`pill route-${o.route}`}>{ROUTE[o.route] || o.route}</span></td>
-                <td>{brandOf(o) ? <span className={`brand brand-${brandOf(o)}`}>{BRAND[brandOf(o)] || brandOf(o)}</span> : <span className="muted">—</span>}</td>
+                <td>{brandOf(o) ? <span className={`brand brand-${brandOf(o)}`}>{BRAND[brandOf(o)] || brandOf(o)}</span> : <span className="muted">—</span>}{cardFor(o) && <div className="muted cardref" title={cardFor(o).token_id || ''}>{cardFor(o).order_ref === o.ref ? 'saved' : 'used'} card {last4(cardFor(o))} · {cardFor(o).created_by}</div>}</td>
                 <td>{[o.customer?.firstName, o.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
                 <td>{o.currency} {Number(o.amount).toFixed(2)}</td>
                 <td>{o.operation === 'Pay' ? 'Sale' : 'Pre-auth'}{o.options?.mit ? ' · MIT' : o.options?.tokenId ? ' · CIT token' : ''}{o.options?.saveCard && o.options.saveCard !== 'none' ? ` · save ${o.options.saveCard.toUpperCase()}` : ''}{o.options?.auth === 'moto' ? ' · MOTO' : ''}</td>

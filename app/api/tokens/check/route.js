@@ -1,4 +1,4 @@
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertOwnsCard } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getOrderRow, refreshFromGeidea, logBrowser } from '@/lib/orders';
 
@@ -20,6 +20,7 @@ export async function POST(req) {
     const q = db().from('tokens').select('*');
     const { data: tok } = await (id ? q.eq('id', Number(id)) : q.eq('order_ref', ref)).maybeSingle();
     if (!tok) throw new HttpError(404, 'Saved card not found');
+    assertOwnsCard(user, tok);
     await assertEnvAllowed(user, tok.env);
     const row = tok.order_ref ? await getOrderRow(tok.order_ref) : null;
     if (data !== undefined || outcome) await logBrowser(tok.order_ref, `Save card checkout → ${outcome || 'closed'}`, data ?? null, user, 'GeideaCheckout callback (browser)');

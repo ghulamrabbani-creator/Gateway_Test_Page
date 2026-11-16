@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { useSettings } from '@/lib/clientState';
 import Insights from '@/components/Insights';
 import { genRef, genAgreement } from '@/lib/refs';
+import { useLiveLog } from '@/lib/liveLog';
+import LiveLog, { PauseBar } from '@/components/LiveLog';
 
 function loadScript(src, ready) {
   return new Promise((resolve, reject) => {
@@ -72,6 +74,7 @@ export default function TransactionClient({ pub, role, tokens }) {
   const microformRef = useRef(null);
   const challengeRef = useRef(null);
   const methodRef = useRef(null);
+  const live = useLiveLog(!!s.stepMode);
 
   const route = s.route || 'geidea';
   const env = s.env;
@@ -111,14 +114,18 @@ export default function TransactionClient({ pub, role, tokens }) {
     return { ...base, tokenId: citToken };
   }
 
-  useEffect(() => { setMp(null); setCy(null); setErr(null); setResult(null); setStage(''); setDropin(false); }, [route, env, type, s.citId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setMp(null); setCy(null); setErr(null); setResult(null); setStage(''); setDropin(false); live.reset(); }, [route, env, type, s.citId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- Geidea PGW (HPP) ----------
   async function payGeidea() {
     setBusy('pay'); setErr(null); setResult(null);
     try {
-      const { ok, j } = await post('/api/checkout', { items: {}, settings: sendSettings(), customer: c, customAmount: amountStr, merchantRef, agreementId: needsAgreement ? agreementId : '' });
+      // R21: the reference is fixed here so the live log can follow the order from its first call
+      const ref = merchantRef.trim() || genRef('geidea');
+      live.track(ref);
+      const { ok, j } = await live.during('Create session (Geidea)', () => post('/api/checkout', { items: {}, settings: sendSettings(), customer: c, customAmount: amountStr, merchantRef: ref, agreementId: needsAgreement ? agreementId : '' }));
       if (!ok) { setErr(j); setBusy(''); return; }
+      await live.gate(j.mode === 'redirect' ? 'redirect to the Geidea payment page' : 'open the Geidea payment page');
       const go = async (outcome, data) => {
         try { await post('/api/checkout/result', { ref: j.ref, outcome, data: data ?? null }); } catch {}
         window.location.href = `/return?ref=${encodeURIComponent(j.ref)}&sdk=${outcome}`;
@@ -140,11 +147,13 @@ export default function TransactionClient({ pub, role, tokens }) {
   async function saveGeidea() {
     setBusy('pay'); setErr(null); setResult(null);
     try {
-      const { ok, j } = await post('/api/tokens/save', { env, usage: 'CIT', currency: s.currency || 'AED' });
+      const { ok, j } = await live.during('Create save-card session (Geidea)', () => post('/api/tokens/save', { env, usage: 'CIT', currency: s.currency || 'AED' }));
+      if (j.ref) await live.track(j.ref);
       if (!ok) { setErr({ error: j.error, insights: j.insights }); setBusy(''); return; }
+      await live.gate('open the Geidea card form');
       await loadScript(j.sdkUrl, () => !!window.GeideaCheckout);
       const done = (outcome) => async (data) => {
-        const r = await post('/api/tokens/check', { ref: j.ref, outcome, data: data ?? null });
+        const r = await live.during('Check the save with Geidea', () => post('/api/tokens/check', { ref: j.ref, outcome, data: data ?? null }));
         setResult({ saved: outcome === 'success', ref: j.ref, insights: r.j?.insights });
         router.refresh();
       };
@@ -167,11 +176,13 @@ export default function TransactionClient({ pub, role, tokens }) {
     }
     setBusy('pay'); setErr(null); setResult(null);
     const body = { confirmed, env, amount: amountStr, currency: s.currency, operation };
-    const { ok, j } = cybs
-      ? await post('/api/tokens/cybs-mit', { ...body, iiId: token, expiry: t?.card?.expiry, ntid: agr, skipDm: !!s.cybsSkipDm })
+    live.reset();
+    const { ok, j } = await live.during(`merchant charge (${ROUTES[route]})`, () => cybs
+      ? post('/api/tokens/cybs-mit', { ...body, iiId: token, expiry: t?.card?.expiry, ntid: agr, skipDm: !!s.cybsSkipDm })
       : mpgs
-      ? await post('/api/tokens/mpgs-mit', { ...body, token, agreementId: agr, agreementType: agrType })
-      : await post('/api/tokens/mit', { ...body, tokenId: token, agreementId: agr, agreementType: agrType });
+      ? post('/api/tokens/mpgs-mit', { ...body, token, agreementId: agr, agreementType: agrType })
+      : post('/api/tokens/mit', { ...body, tokenId: token, agreementId: agr, agreementType: agrType }));
+    if (j.ref) await live.track(j.ref);
     setBusy('');
     if (ok) setResult({ ref: j.ref, insights: j.insights }); else setErr({ error: j.error, insights: j.insights, ref: j.ref });
     router.refresh();
@@ -181,7 +192,9 @@ export default function TransactionClient({ pub, role, tokens }) {
   async function startMpgs() {
     setBusy('session'); setErr(null); setFieldErr({});
     try {
-      const { ok, j } = await post('/api/mpgs/checkout', { settings: sendSettings(), customer: c, amount, merchantRef, agreementId: needsAgreement ? agreementId : '' });
+      const ref = merchantRef.trim() || genRef('mpgs');
+      live.track(ref);
+      const { ok, j } = await live.during('Create session (MPGS)', () => post('/api/mpgs/checkout', { settings: sendSettings(), customer: c, amount, merchantRef: ref, agreementId: needsAgreement ? agreementId : '' }));
       if (!ok) { setErr(j); setBusy(''); return; }
       setMp({ ...j, ready: false });
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -209,7 +222,7 @@ export default function TransactionClient({ pub, role, tokens }) {
   }
 
   async function onFormUpdate(j, r) {
-    await post('/api/checkout/result', { ref: j.ref, outcome: `formSessionUpdate ${r?.status}`, data: r ?? null });
+    await live.during('card details to the session (browser → MPGS)', () => post('/api/checkout/result', { ref: j.ref, outcome: `formSessionUpdate ${r?.status}`, data: r ?? null, action: `MPGS Hosted Session → formSessionUpdate ${r?.status}` }));
     if (r?.status !== 'ok') {
       if (r?.status === 'fields_in_error') setFieldErr(r.errors || {});
       setErr({ error: r?.status === 'fields_in_error' ? 'Check the highlighted card fields.' : `Card form: ${r?.status}${r?.errors?.message ? ` (${r.errors.message})` : ''}` });
@@ -219,18 +232,21 @@ export default function TransactionClient({ pub, role, tokens }) {
     const done = () => { window.location.href = `/mpgs/complete?ref=${encodeURIComponent(j.ref)}`; };
     if (auth !== '3ds') return done();
     try {
+      await live.gate('INITIATE_AUTHENTICATION (3-D Secure: is the card enrolled?)');
       setStage('3-D Secure: checking the card…');
-      const init = await post(`/api/mpgs/${encodeURIComponent(j.ref)}/authenticate`, { step: 'initiate' });
+      const init = await live.during('INITIATE_AUTHENTICATION', () => post(`/api/mpgs/${encodeURIComponent(j.ref)}/authenticate`, { step: 'initiate' }));
       if (!init.ok) { setErr(init.j); setBusy(''); setStage(''); return; }
       if (init.j.recommendation !== 'PROCEED') return done();
       if (init.j.html && methodRef.current) {
         injectHtml(methodRef.current, init.j.html);
         if (init.j.methodSupported === 'SUPPORTED') await new Promise((res) => setTimeout(res, 3000));
       }
+      await live.gate('AUTHENTICATE_PAYER (3-D Secure: frictionless or challenge)');
       setStage('3-D Secure: authenticating…');
-      const a = await post(`/api/mpgs/${encodeURIComponent(j.ref)}/authenticate`, { step: 'authenticate', browser: browserInfo() });
+      const a = await live.during('AUTHENTICATE_PAYER', () => post(`/api/mpgs/${encodeURIComponent(j.ref)}/authenticate`, { step: 'authenticate', browser: browserInfo() }));
       if (!a.ok) { setErr(a.j); setBusy(''); setStage(''); return; }
       if (a.j.challenge && a.j.html) {
+        await live.gate('show the issuer\'s 3-D Secure challenge');
         setStage('3-D Secure: complete the challenge below');
         injectHtml(challengeRef.current, a.j.html);
         challengeRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -244,7 +260,9 @@ export default function TransactionClient({ pub, role, tokens }) {
   async function startCybs() {
     setBusy('session'); setErr(null);
     try {
-      const { ok, j } = await post('/api/cybs/checkout', { settings: sendSettings(), customer: c, amount, merchantRef });
+      const ref = merchantRef.trim() || genRef('cybs');
+      live.track(ref);
+      const { ok, j } = await live.during('Capture context (CYBS Microform)', () => post('/api/cybs/checkout', { settings: sendSettings(), customer: c, amount, merchantRef: ref }));
       if (!ok) { setErr(j); setBusy(''); return; }
       if (j.savedCard) { setCy({ ref: j.ref, savedCard: true, ready: true }); setBusy(''); return; }
       setCy({ ref: j.ref, ready: false });
@@ -274,8 +292,9 @@ export default function TransactionClient({ pub, role, tokens }) {
     setBusy('');
   }
 
+  const CY_STEP = { token: 'card token to the shop', setup: 'payer authentication setup', enrol: '3DS enrolment check + authorization', pay: 'authorization' };
   async function cyStep(step, extra = {}) {
-    const r = await post(`/api/cybs/${encodeURIComponent(cy.ref)}/step`, { step, ...extra });
+    const r = await live.during(CY_STEP[step] || step, () => post(`/api/cybs/${encodeURIComponent(cy.ref)}/step`, { step, ...extra }));
     if (!r.ok) throw Object.assign(new Error(r.j.error || `${step} failed`), { payload: r.j });
     return r.j;
   }
@@ -291,10 +310,13 @@ export default function TransactionClient({ pub, role, tokens }) {
         const token = await new Promise((resolve, reject) => microformRef.current.createToken({ expirationMonth: mm, expirationYear: yyyy }, (e, t) => (e ? reject(new Error(e.message || e.reason || 'Microform could not create a token')) : resolve(t))));
         await cyStep('token', { transientToken: token, expiry: { month: mm, year: yyyy } });
       }
-      if (auth !== '3ds') { setStage('Authorizing…'); await cyStep('pay'); return done(); }
+      if (auth !== '3ds') { await live.gate('authorization (no 3-D Secure)'); setStage('Authorizing…'); await cyStep('pay'); return done(); }
+      await live.gate('payer authentication setup');
       setStage('3-D Secure: device data collection…');
       const setup = await cyStep('setup');
       if (!setup.ok || !setup.url) throw Object.assign(new Error('Payer auth setup failed'), { payload: setup });
+      await live.gate('device data collection (browser → Cardinal)');
+      const ddcStart = Date.now();
       await new Promise((resolve) => {
         const t = setTimeout(resolve, 10000);
         const on = (ev) => { let host = ''; try { host = new URL(ev.origin).hostname; } catch {} if (/cardinalcommerce\.com$/.test(host)) { clearTimeout(t); window.removeEventListener('message', on); resolve(); } };
@@ -302,9 +324,12 @@ export default function TransactionClient({ pub, role, tokens }) {
         methodRef.current.innerHTML = `<iframe name="cy-ddc" height="1" width="1" style="display:none"></iframe><form id="cy-ddc-form" target="cy-ddc" method="POST" action="${setup.url}"><input type="hidden" name="JWT" value="${setup.accessToken}"></form>`;
         document.getElementById('cy-ddc-form').submit();
       });
+      await live.during('device data collection (browser → Cardinal)', () => post('/api/checkout/result', { ref: cy.ref, outcome: 'ddc', data: { referenceId: setup.referenceId, finishedInMs: Date.now() - ddcStart }, action: 'Cardinal device data collection finished (browser)' }));
+      await live.gate('3DS enrolment check + authorization');
       setStage('3-D Secure: checking enrolment and authorizing…');
       const enrol = await cyStep('enrol', { browser: browserInfo(), referenceId: setup.referenceId });
       if (enrol.challenge && enrol.stepUpUrl) {
+        await live.gate('show the issuer\'s 3-D Secure challenge');
         setStage('3-D Secure: complete the challenge below');
         challengeRef.current.innerHTML = `<iframe name="cy-stepup" style="width:100%;min-height:600px;border:0"></iframe><form id="cy-stepup-form" target="cy-stepup" method="POST" action="${enrol.stepUpUrl}"><input type="hidden" name="JWT" value="${enrol.accessToken}"><input type="hidden" name="MD" value="${cy.ref}"></form>`;
         document.getElementById('cy-stepup-form').submit();
@@ -560,6 +585,12 @@ export default function TransactionClient({ pub, role, tokens }) {
             {type !== 'mit' && type !== 'save' && (<><dt>Reference</dt><dd className="mono">{mp?.ref || cy?.ref || merchantRef || 'Generated'}</dd></>)}
           </dl>
 
+          {type !== 'mit' && (
+            <div className="stepmode">
+              <span title="Pause after each API call so you can read its request and response, then press Continue">Step by step</span>
+              <Seg value={!!s.stepMode} onChange={up('stepMode')} options={[[false, 'Off'], [true, 'On']]} />
+            </div>
+          )}
           {!started && (
             <div className="tk-action">
               <button className="tk-go" onClick={act} disabled={!!busy || blockers.length > 0}>{busy === 'session' ? 'Starting…' : busy === 'pay' ? 'Working…' : label}</button>
@@ -582,7 +613,7 @@ export default function TransactionClient({ pub, role, tokens }) {
               {mp.cvvOnly && hf('mp-csc', `CVV for ${citCardText || 'the saved card'}`, 'securityCode', { maxWidth: 180 })}
               <div className="row" style={{ marginTop: 14 }}>
                 <button className="tk-go" onClick={submitCard} disabled={!mp.ready || !!busy}>{!mp.ready ? 'Loading card form…' : busy === 'pay' ? 'Working…' : `Pay ${s.currency} ${amount.toFixed(2)}`}</button>
-                <button className="ghost" onClick={() => setMp(null)} disabled={busy === 'pay'}>Start over</button>
+                <button className="ghost" onClick={() => { setMp(null); live.reset(); setBusy(''); setStage(''); }} disabled={busy === 'pay' && !live.pause}>Start over</button>
               </div>
             </div>
           )}
@@ -600,12 +631,13 @@ export default function TransactionClient({ pub, role, tokens }) {
               </>)}
               <div className="row" style={{ marginTop: 14 }}>
                 <button className="tk-go" onClick={submitCybs} disabled={!cy.ready || !!busy || (!cy.savedCard && !(exp.month && exp.year))}>{!cy.ready ? 'Loading card form…' : busy === 'pay' ? 'Working…' : `Pay ${s.currency} ${amount.toFixed(2)}`}</button>
-                <button className="ghost" onClick={() => setCy(null)} disabled={busy === 'pay'}>Start over</button>
+                <button className="ghost" onClick={() => { setCy(null); live.reset(); setBusy(''); setStage(''); }} disabled={busy === 'pay' && !live.pause}>Start over</button>
               </div>
             </div>
           )}
 
-          {stage && <p className="tk-stage">{stage}</p>}
+          <PauseBar live={live} compact />
+          {stage && <p className="tk-stage">{live.pause ? `Paused before: ${live.pause.next}` : stage}</p>}
           {dropin && <div id="gd-dropin" className="tk-dropin" />}
           <div ref={challengeRef} className="tk-challenge" />
 
@@ -626,6 +658,7 @@ export default function TransactionClient({ pub, role, tokens }) {
       </aside>
       <div ref={methodRef} style={{ display: 'none' }} aria-hidden="true" />
     </div>
+    <LiveLog live={live} stepMode={!!s.stepMode} />
     </>
   );
 }

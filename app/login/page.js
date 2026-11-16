@@ -2,7 +2,7 @@
 import { useState } from 'react';
 
 export default function Login() {
-  const [u, setU] = useState('demo');
+  const [u, setU] = useState('');
   const [p, setP] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -19,10 +19,10 @@ export default function Login() {
     <div className="login card">
       <h1>Gateway test bench</h1>
       <p className="sub">Run test payments against the Geidea gateway in the UAE and see what happened to each one.</p>
-      <p className="muted" style={{ fontSize: 14 }}>Testers sign in as <b>demo</b> with password <b>demo</b>. Admins also manage gateway credentials.</p>
+      <p className="muted" style={{ fontSize: 14 }}>Sign in with the username an admin created for you; your saved cards are kept under it. The shared tester login is <b>demo</b> / <b>demo</b>.</p>
       <form onSubmit={submit}>
         <label className="f">Username</label>
-        <input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" />
+        <input value={u} autoCapitalize="none" spellCheck={false} onChange={(e) => setU(e.target.value)} autoComplete="username" />
         <label className="f">Password</label>
         <input type="password" value={p} onChange={(e) => setP(e.target.value)} autoComplete="current-password" />
         {err && <div className="msg bad">{err}</div>}

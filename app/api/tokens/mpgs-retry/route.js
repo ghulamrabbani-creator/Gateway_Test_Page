@@ -1,5 +1,5 @@
 // Retry tokenizing a failed MPGS save-card from the order's Hosted Session (works while MPGS still holds the session).
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertOwnsCard } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { tokenizeSession, cardFromMpgs } from '@/lib/mpgs';
 import { responseInsights } from '@/lib/insights';
@@ -9,6 +9,7 @@ export async function POST(req) {
     const user = requireUser();
     const { id } = await req.json();
     const { data: t } = await db().from('tokens').select('*').eq('id', Number(id)).maybeSingle();
+    assertOwnsCard(user, t);
     if (!t || t.route !== 'mpgs') throw new HttpError(404, 'MPGS saved card not found');
     await assertEnvAllowed(user, t.env);
     const { data: row } = await db().from('orders').select('ref,session_id,options').eq('ref', t.order_ref).maybeSingle();

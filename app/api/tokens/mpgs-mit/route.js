@@ -1,7 +1,7 @@
 // MIT on a card saved through MPGS direct: PAY/AUTHORIZE with the MPGS token, transaction.source MERCHANT,
 // storedOnFile STORED, same agreement.id, no CVV (POC run 2 rules for MID 20100000101).
 import { assertProdPayment, assertConfirmed } from '@/lib/guard';
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertTokenUse } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { payOrAuthorize, retrieveOrder, syncMpgsOrder, mpgsCreds } from '@/lib/mpgs';
 import { responseInsights } from '@/lib/insights';
@@ -11,6 +11,7 @@ export async function POST(req) {
   try {
     const user = requireUser();
     const { env = 'test', token, agreementId, agreementType = 'Unscheduled', amount, currency = 'AED', operation = 'Pay', confirmed } = await req.json();
+    await assertTokenUse(user, token);
     await assertEnvAllowed(user, env);
     if (!token || !agreementId) throw new HttpError(400, 'MPGS token and agreement ID are both needed for an MIT.');
     if (!(Number(amount) > 0)) throw new HttpError(400, 'Amount must be above zero.');

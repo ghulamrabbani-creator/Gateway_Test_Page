@@ -27,7 +27,7 @@ function CardFace({ t }) {
   );
 }
 
-function SavedCard({ t, s, setS, onChanged }) {
+function SavedCard({ t, s, setS, onChanged, me }) {
   const router = useRouter();
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState(null);
@@ -36,8 +36,10 @@ function SavedCard({ t, s, setS, onChanged }) {
   const isCybs = t.route === 'cybs';
   const gwName = isCybs ? 'CYBS' : 'MPGS';
   const sc = t.scheme;
-  const canMit = t.status === 'ACTIVE' && t.token_id && t.agreement_id;
-  const canCit = t.status === 'ACTIVE' && t.token_id;
+  const own = t.created_by === me;
+  // Payments start on the Transaction page, whose pickers hold only your own cards
+  const canMit = own && t.status === 'ACTIVE' && t.token_id && t.agreement_id;
+  const canCit = own && t.status === 'ACTIVE' && t.token_id;
 
   async function check() {
     setBusy('check'); setResult(null);
@@ -66,6 +68,7 @@ function SavedCard({ t, s, setS, onChanged }) {
     router.push('/');
   }
   async function remove() {
+    if (!own && !window.confirm(`Remove ${t.created_by}'s card from the shop?`)) return;
     await fetch(`/api/tokens/${t.id}`, { method: 'DELETE' });
     onChanged();
   }
@@ -75,7 +78,7 @@ function SavedCard({ t, s, setS, onChanged }) {
       <CardFace t={t} />
       <div className="sc-body">
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <div className="row"><span className={`pill ${tone}`}>{st}</span><span className="muted" style={{ fontSize: 13 }}>{t.env === 'production' ? 'Production' : t.env === 'staging' ? 'Staging' : 'Test'} · {isCybs ? 'CYBS direct' : isMpgs ? 'MPGS direct' : 'Geidea PGW'}</span></div>
+          <div className="row"><span className={`pill ${tone}`}>{st}</span>{!own && <span className="pill owner">Belongs to {t.created_by || 'nobody'}</span>}<span className="muted" style={{ fontSize: 13 }}>{t.env === 'production' ? 'Production' : t.env === 'staging' ? 'Staging' : 'Test'} · {isCybs ? 'CYBS direct' : isMpgs ? 'MPGS direct' : 'Geidea PGW'}</span></div>
           <button className="ghost small" onClick={remove}>Remove</button>
         </div>
         {t.note && <p className="sc-note">{t.note}</p>}
@@ -101,6 +104,7 @@ function SavedCard({ t, s, setS, onChanged }) {
           {isMpgs && !t.token_id && t.order_ref && <button disabled={!!busy} onClick={retryToken}>{busy === 'retry' ? 'Tokenizing…' : 'Retry token creation'}</button>}
           {t.token_id && <button className="ghost" disabled={!!busy} onClick={checkScheme}>{busy === 'scheme' ? `Asking ${gwName}…` : `Check network token on ${gwName}`}</button>}
         </div>
+        {!own && t.status === 'ACTIVE' && <p className="sc-note">Only {t.created_by} can pay with this card from New transaction. You can still check it here, or paste its token.</p>}
         {t.status === 'ACTIVE' && t.usage !== 'CIT' && !t.agreement_id && <p className="sc-note">No MIT agreement is stored for this card, so it can't be charged without the customer. Save a card during a Sale with Save the card set to For MIT.</p>}
         {result?.error && <div className="msg bad">{result.error}</div>}
         {result?.ref && <p>MIT order <Link className="mono" href={`/orders/${result.ref}`}>{result.ref}</Link></p>}
@@ -110,7 +114,7 @@ function SavedCard({ t, s, setS, onChanged }) {
   );
 }
 
-export default function CardsClient({ tokens, pub }) {
+export default function CardsClient({ tokens, pub, role, me, all }) {
   const router = useRouter();
   const [s, setS] = useSettings();
   // Redirect flow: /cards?saved=<ref> → ask Geidea for the result straight away
@@ -123,14 +127,22 @@ export default function CardsClient({ tokens, pub }) {
   const other = tokens.filter((t) => t.status !== 'ACTIVE');
   return (
     <div>
-      <h1>Saved cards</h1>
-      <p className="sub">Cards saved as Geidea tokens or, through MPGS direct, as MPGS tokens. Check a card's network token, or start a customer payment (CIT) or merchant charge (MIT) with it on the New transaction page.</p>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <h1 style={{ marginBottom: 0 }}>Saved cards</h1>
+        {role === 'admin' && (
+          <div className="seg" role="radiogroup" aria-label="Whose cards">
+            <Link href="/cards" className={`segl ${!all ? 'on' : ''}`} aria-checked={!all} role="radio">Mine</Link>
+            <Link href="/cards?all=1" className={`segl ${all ? 'on' : ''}`} aria-checked={all} role="radio">All users</Link>
+          </div>
+        )}
+      </div>
+      <p className="sub">{all ? 'Every user\'s saved cards, with the owner on each. ' : <>Cards saved by your own transactions (signed in as <b>{me}</b>). </>}Cards saved as Geidea tokens or, through MPGS direct, as MPGS tokens. Check a card's network token, or start a customer payment (CIT) or merchant charge (MIT) with it on the New transaction page.</p>
 
       <div>
-        {!tokens.length && <div className="card"><p style={{ margin: 0 }}>No saved cards yet. On <Link href="/">New transaction</Link>, run a Sale with Save the card on, or pick Save card.</p></div>}
-        {active.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} onChanged={() => router.refresh()} />)}
+        {!tokens.length && <div className="card"><p style={{ margin: 0 }}>No saved cards yet for this user. On <Link href="/">New transaction</Link>, run a Sale with Save the card on, or pick Save card.</p></div>}
+        {active.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} me={me} onChanged={() => router.refresh()} />)}
         {other.length > 0 && <h2 style={{ marginTop: 24 }}>Not ready</h2>}
-        {other.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} onChanged={() => router.refresh()} />)}
+        {other.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} me={me} onChanged={() => router.refresh()} />)}
       </div>
     </div>
   );

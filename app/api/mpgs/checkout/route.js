@@ -3,7 +3,7 @@
 import { assertProdPayment } from '@/lib/guard';
 import { cleanAgreement } from '@/lib/refs';
 import { freeRef } from '@/lib/orders';
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertTokenUse } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mpgsCreds, createSession, sessionJsUrl } from '@/lib/mpgs';
 import { responseInsights } from '@/lib/insights';
@@ -23,6 +23,7 @@ export async function POST(req) {
     const saveCard = settings.saveCard || 'none';
     const withAgreement = saveCard === 'mit' || saveCard === 'citmit';
     const savedToken = (settings.mpgsToken || '').trim();
+    await assertTokenUse(user, savedToken);
     const order = {
       ref: (await freeRef(merchantRef)) || `MP-${shortId()}-${Math.floor(Date.now() / 1000)}`,
       env, route: 'mpgs',

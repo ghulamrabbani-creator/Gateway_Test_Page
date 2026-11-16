@@ -4,6 +4,8 @@ import CopyButton from './CopyButton';
 import { responseInsights } from '@/lib/insights';
 
 const tone = (s, e) => (e || !s ? 'bad' : s >= 200 && s < 300 ? 'good' : 'bad');
+// R21: a request row is written before the gateway answers; status null + no error = still waiting (or never answered)
+const waiting = (l) => l.status == null && !l.error && l.method !== 'BROWSER';
 
 export default function Inspector({ logs, openFirst = false }) {
   if (!logs?.length) return <p className="muted">No API calls yet.</p>;
@@ -16,7 +18,7 @@ export default function Inspector({ logs, openFirst = false }) {
     return (
       <details className="call" key={l.id} open={openFirst && i === 0}>
         <summary>
-          <span className={`pill ${tone(l.status, l.error)}`}>{l.error ? 'ERR' : l.status}</span>
+          <span className={`pill ${waiting(l) ? 'warn' : tone(l.status, l.error)}`}>{waiting(l) ? 'no response' : l.error ? 'ERR' : l.status}</span>
           <strong>{l.action}</strong>
           <span className="mono muted">{l.method} {l.url?.replace(/^https?:\/\/[^/]+/, '')}</span>
           <span className="spacer" style={{ flex: 1 }} />

@@ -4,7 +4,57 @@ import { useRouter } from 'next/navigation';
 
 const ENVS = [['test', 'Test'], ['staging', 'Staging'], ['production', 'Production']];
 
-export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
+function UsersPanel({ users, cardCount }) {
+  const router = useRouter();
+  const [n, setN] = useState({ username: '', password: '', role: 'tester' });
+  const [reset, setReset] = useState({});
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState('');
+  async function act(action, username, extra = {}) {
+    if (action === 'delete' && !window.confirm(`Delete ${username}? Their saved cards stay, still owned by ${username} (admins see them under All users).`)) return;
+    setBusy(`${action}:${username}`); setMsg(null);
+    const r = await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, username, ...extra }) });
+    const j = await r.json().catch(() => ({}));
+    setBusy('');
+    const done = { create: `Created ${username}.`, reset: `New password set for ${username}.`, role: `Role changed for ${username}; applies at their next sign-in.`, disable: `${username} disabled; applies at their next sign-in.`, enable: `${username} enabled.`, delete: `${username} deleted.` }[action];
+    setMsg(r.ok ? { tone: 'good', text: done } : { tone: 'bad', text: j.error || 'Failed' });
+    if (r.ok) { if (action === 'create') setN({ username: '', password: '', role: 'tester' }); if (action === 'reset') setReset({ ...reset, [username]: '' }); router.refresh(); }
+  }
+  return (
+    <div className="card">
+      <h2>Named users</h2>
+      <p className="sub">Each user signs in with their own username and password. Saved cards belong to the user whose transaction saved them, and Saved cards and the CIT / MIT pickers show only that user's cards. Orders stay visible to everyone. Testers run transactions (Production only if allowed under General); admins also manage credentials and users.</p>
+      <table>
+        <thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Saved cards</th><th>Last sign-in</th><th>New password</th><th /></tr></thead>
+        <tbody>
+          {users.map((u) => (
+            <tr key={u.username}>
+              <td className="mono">{u.username}<div className="muted" style={{ fontSize: 11 }}>by {u.created_by || '—'}, {new Date(u.created_at).toLocaleDateString()}</div></td>
+              <td><select value={u.role} disabled={!!busy} onChange={(e) => act('role', u.username, { role: e.target.value })}><option value="tester">Tester</option><option value="admin">Admin</option></select></td>
+              <td><span className={`pill ${u.disabled ? 'bad' : 'good'}`}>{u.disabled ? 'Disabled' : 'Active'}</span></td>
+              <td>{cardCount[u.username] || 0}</td>
+              <td className="muted">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never'}</td>
+              <td><div className="row nowrap"><input type="password" placeholder="8+ characters" value={reset[u.username] || ''} onChange={(e) => setReset({ ...reset, [u.username]: e.target.value })} style={{ width: 150 }} /><button className="ghost small" disabled={!!busy || !(reset[u.username] || '').length} onClick={() => act('reset', u.username, { password: reset[u.username] })}>Set</button></div></td>
+              <td><div className="row nowrap"><button className="ghost small" disabled={!!busy} onClick={() => act(u.disabled ? 'enable' : 'disable', u.username)}>{u.disabled ? 'Enable' : 'Disable'}</button><button className="ghost small" disabled={!!busy} onClick={() => act('delete', u.username)}>Delete</button></div></td>
+            </tr>
+          ))}
+          {!users.length && <tr><td colSpan={7} className="muted">No named users yet. Built-in demo and admin hold {(cardCount.demo || 0) + (cardCount.admin || 0)} saved cards.</td></tr>}
+        </tbody>
+      </table>
+      <h3>Create a user</h3>
+      <div className="row">
+        <div><label className="f">Username</label><input className="mono" placeholder="e.g. sidra" value={n.username} onChange={(e) => setN({ ...n, username: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '') })} /></div>
+        <div><label className="f">Password</label><input type="password" placeholder="8+ characters" value={n.password} onChange={(e) => setN({ ...n, password: e.target.value })} /></div>
+        <div><label className="f">Role</label><select value={n.role} onChange={(e) => setN({ ...n, role: e.target.value })}><option value="tester">Tester</option><option value="admin">Admin</option></select></div>
+        <div style={{ alignSelf: 'flex-end' }}><button disabled={!!busy || n.username.length < 3 || n.password.length < 8} onClick={() => act('create', n.username, { password: n.password, role: n.role })}>{busy.startsWith('create') ? 'Creating…' : 'Create user'}</button></div>
+      </div>
+      {msg && <div className={`msg ${msg.tone}`}>{msg.text}</div>}
+      <p className="hint">Changes to role or Disabled apply when the user next signs in (a session lasts up to 12 hours). Passwords are stored as scrypt hashes.</p>
+    </div>
+  );
+}
+
+export default function AdminForm({ cfg, creds, callbackUrl, returnUrl, users = [], cardCount = {} }) {
   const router = useRouter();
   const [tab, setTab] = useState('creds');
   const [envs, setEnvs] = useState(cfg.envs);
@@ -101,8 +151,11 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
         </div>
       )}
 
+      {tab === 'users' && <UsersPanel users={users} cardCount={cardCount} />}
       {tab === 'users' && (
         <div className="card">
+          <h2>Built-in logins</h2>
+          <p className="sub">The shared demo login (tester) and the admin login stay. Cards saved while signed in as demo belong to demo.</p>
           <label className="f">New demo password (blank keeps current; default is "demo")</label>
           <input type="password" value={pw.demoPassword} onChange={(e) => setPw({ ...pw, demoPassword: e.target.value })} />
           <label className="f">New admin password (blank keeps current)</label>
@@ -110,7 +163,7 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl }) {
         </div>
       )}
 
-      <div className="row"><button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save all settings'}</button></div>
+      <div className="row"><button onClick={save} disabled={busy}>{busy ? 'Saving…' : tab === 'users' ? 'Save built-in passwords' : 'Save all settings'}</button></div>
       {msg && <div className={`msg ${msg.tone}`}>{msg.text}</div>}
     </div>
   );

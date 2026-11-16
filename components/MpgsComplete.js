@@ -3,27 +3,43 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Insights from './Insights';
+import { useSettings } from '@/lib/clientState';
+import { useLiveLog } from '@/lib/liveLog';
+import LiveLog, { PauseBar } from './LiveLog';
 
-export default function MpgsComplete({ refId, amount, auth, paid, initiate, authResult }) {
+export default function MpgsComplete({ refId, amount, auth, paid, initiate, authResult, operation }) {
+  const op = operation === 'PreAuthorize' ? 'AUTHORIZE' : 'PAY';
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState(null);
+  const [s, , ready] = useSettings();
+  const live = useLiveLog(!!s.stepMode);
   const rec = authResult?.recommendation;
   const auto = !paid && (auth !== '3ds' || rec === 'PROCEED');
 
   async function pay(withoutAuth = false) {
     setBusy(true);
-    const r = await fetch(`/api/mpgs/${encodeURIComponent(refId)}/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withoutAuth }) });
-    const j = await r.json().catch(() => ({}));
+    const { r, j } = await live.during(op, async () => {
+      const r = await fetch(`/api/mpgs/${encodeURIComponent(refId)}/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withoutAuth }) });
+      return { r, j: await r.json().catch(() => ({})) };
+    });
     setBusy(false);
     setRes(r.ok ? j : { error: j.error });
   }
-  useEffect(() => { if (auto) pay(); else if (paid) router.replace(`/orders/${encodeURIComponent(refId)}`); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // R21: wait for the stored settings (step mode), show the calls so far, then pause before PAY in step mode
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      await live.track(refId);
+      if (auto) { await live.gate(`${op} (send the payment to MPGS)`); pay(); }
+      else if (paid) router.replace(`/orders/${encodeURIComponent(refId)}`);
+    })();
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const outcome = res?.insights?.find((i) => i.key === 'outcome');
   return (
     <div>
-      <h1>{res ? (outcome?.value || (res.error ? 'Payment not sent' : 'Done')) : auto ? 'Sending payment to MPGS…' : '3-D Secure did not clear'}</h1>
+      <h1>{res ? (outcome?.value || (res.error ? 'Payment not sent' : 'Done')) : auto ? (live.pause ? `Paused before ${op}` : 'Sending payment to MPGS…') : '3-D Secure did not clear'}</h1>
       <p className="sub mono">{refId} · {amount}</p>
       {!auto && !res && (
         <div className="card">
@@ -37,7 +53,9 @@ export default function MpgsComplete({ refId, amount, auth, paid, initiate, auth
       {res?.error && <div className="msg bad">{res.error}</div>}
       {res?.token && <div className="msg good">Card saved as MPGS token <span className="mono">{res.token}</span>. See <Link href="/cards">Saved cards</Link>.</div>}
       {res?.insights && <div className="card"><h2>Key insights</h2><Insights items={res.insights} /></div>}
+      <PauseBar live={live} compact />
       {(res || paid) && <div className="row"><Link className="btn" href={`/orders/${encodeURIComponent(refId)}`}>Manage order and see API calls</Link><Link className="btn ghost" href="/">New payment</Link></div>}
+      <LiveLog live={live} stepMode={!!s.stepMode} />
     </div>
   );
 }

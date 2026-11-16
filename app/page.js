@@ -8,6 +8,6 @@ export default async function Transaction() {
   const user = currentUser();
   if (!user) redirect('/login');
   const pub = publicConfig(await getConfig());
-  const { data } = await db().from('tokens').select('id, env, route, status, usage, token_id, agreement_id, agreement_type, card, scheme').eq('status', 'ACTIVE').order('created_at', { ascending: false }).limit(100);
+  const { data } = await db().from('tokens').select('id, env, route, status, usage, token_id, agreement_id, agreement_type, card, scheme').eq('status', 'ACTIVE').eq('created_by', user.user).order('created_at', { ascending: false }).limit(100);
   return <TransactionClient pub={pub} role={user.role} tokens={data || []} />;
 }

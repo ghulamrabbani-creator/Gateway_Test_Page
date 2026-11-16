@@ -3,7 +3,7 @@
 // identifier) skip Microform.
 import { assertProdPayment } from '@/lib/guard';
 import { freeRef } from '@/lib/orders';
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertTokenUse } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getConfig, baseUrlFrom } from '@/lib/config';
 import { cybsCreds, captureContext } from '@/lib/cybs';
@@ -21,6 +21,7 @@ export async function POST(req) {
     if (!(amount > 0)) throw new HttpError(400, 'Amount must be above zero.');
     await assertProdPayment(env, amount);
     const ii = (settings.cybsIi || '').trim();
+    await assertTokenUse(user, ii);
     const saveCard = settings.saveCard || 'none';
     const order = {
       ref: (await freeRef(merchantRef)) || `CY-${shortId()}-${Math.floor(Date.now() / 1000)}`,

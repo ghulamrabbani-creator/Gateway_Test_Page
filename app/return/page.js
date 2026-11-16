@@ -4,6 +4,7 @@ import { currentUser } from '@/lib/auth';
 import { getOrderRow, refreshFromGeidea, logBrowser } from '@/lib/orders';
 import { orderInsights } from '@/lib/insights';
 import Insights from '@/components/Insights';
+import OrderLog from '@/components/OrderLog';
 
 export default async function Return({ searchParams }) {
   const user = currentUser();
@@ -33,6 +34,7 @@ export default async function Return({ searchParams }) {
         <Insights items={ins} empty="Nothing to show until Geidea returns the order." />
       </div>
       <div className="row"><Link className="btn" href={`/orders/${row.ref}`}>Manage order and see API calls</Link><Link className="btn ghost" href="/">Back to shop</Link></div>
+      <OrderLog refId={row.ref} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { orderInsights, mpgsInsights, cybsInsights } from '@/lib/insights';
 import Insights from '@/components/Insights';
 import Inspector from '@/components/Inspector';
 import OrderActions from '@/components/OrderActions';
+import { db } from '@/lib/db';
 
 export default async function OrderPage({ params }) {
   const user = currentUser();
@@ -14,6 +15,10 @@ export default async function OrderPage({ params }) {
   if (!row) return <div className="card"><h1>Order not found</h1></div>;
   const logs = await logsFor(row.ref);
   const o = row.last_order;
+  // R21: the saved card this order created or used, and who owns it (orders are visible to everyone)
+  const { data: saved } = await db().from('tokens').select('id,token_id,card,created_by,order_ref,status').eq('order_ref', row.ref).maybeSingle();
+  const used = !saved && row.token_id ? (await db().from('tokens').select('id,token_id,card,created_by,order_ref,status').eq('token_id', row.token_id).limit(1)).data?.[0] : null;
+  const sc = saved || used;
   const mpgs = row.route === 'mpgs';
   const m = row.options?.mpgs || {};
   const cybs = row.route === 'cybs';
@@ -53,6 +58,7 @@ export default async function OrderPage({ params }) {
             <div>Captured</div><div>{row.currency} {captured.toFixed(2)}</div>
             <div>Refunded</div><div>{row.currency} {refunded.toFixed(2)}</div>
             {row.token_id && (<><div>Token</div><div className="mono">{row.token_id}</div></>)}
+            {sc && (<><div>Saved card</div><div>{saved ? 'Saved by this order' : 'Paid with'}: {[sc.card?.brand, sc.card?.masked].filter(Boolean).join(' ') || sc.token_id || 'token pending'} · belongs to <b>{sc.created_by || '—'}</b>{saved && sc.status !== 'ACTIVE' ? ` (${sc.status})` : ''}</div></>)}
             {row.agreement_id && (<><div>Agreement</div><div className="mono">{row.agreement_id} ({row.agreement_type})</div></>)}
           </div>
         </div>

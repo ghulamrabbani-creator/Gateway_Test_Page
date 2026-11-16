@@ -13,3 +13,8 @@ create index callbacks_received_idx on callbacks (received_at desc);
 create table tokens (id bigserial primary key, env text not null, token_id text, agreement_id text, agreement_type text, usage text not null, card jsonb, status text not null default 'PENDING', source text not null, order_ref text, created_by text, created_at timestamptz default now());
 alter table app_config enable row level security; alter table credentials enable row level security; alter table orders enable row level security;
 alter table api_logs enable row level security; alter table callbacks enable row level security; alter table tokens enable row level security;
+-- R21 (16-Nov-2026): named users; saved cards are owned by tokens.created_by
+create table users (username text primary key check (username ~ '^[a-z0-9._-]{3,32}$' and username not in ('demo','admin')), password_hash text not null, role text not null default 'tester' check (role in ('tester','admin')), disabled boolean not null default false, created_by text, created_at timestamptz default now(), last_login_at timestamptz);
+alter table users enable row level security;
+create index tokens_owner_idx on tokens (created_by, created_at desc);
+create index tokens_token_idx on tokens (token_id);

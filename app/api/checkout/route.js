@@ -1,7 +1,7 @@
 import { assertProdPayment } from '@/lib/guard';
 import { cleanAgreement } from '@/lib/refs';
 import { freeRef } from '@/lib/orders';
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertTokenUse } from '@/lib/auth';
 import { getConfig, baseUrlFrom } from '@/lib/config';
 import { db } from '@/lib/db';
 import { createHppSession } from '@/lib/geidea';
@@ -13,6 +13,7 @@ export async function POST(req) {
   try {
     const user = requireUser();
     const { items = {}, settings = {}, customer = {}, customAmount, merchantRef, agreementId } = await req.json();
+    await assertTokenUse(user, settings.tokenId);
     const env = settings.env || 'test';
     await assertEnvAllowed(user, env);
     const cfg = await getConfig();

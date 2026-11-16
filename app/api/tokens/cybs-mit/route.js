@@ -2,7 +2,7 @@
 // initiator merchant, credentialStoredOnFile false, storedCredentialUsed true, previousTransactionId = the CIT's NTID,
 // no CVV; optional actionList DECISION_SKIP (Decision Manager rejected a test MIT on velocity).
 import { assertProdPayment, assertConfirmed } from '@/lib/guard';
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertTokenUse } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { cybsCreds, payment, paymentInfo, recordTxn } from '@/lib/cybs';
 import { responseInsights } from '@/lib/insights';
@@ -12,6 +12,7 @@ export async function POST(req) {
   try {
     const user = requireUser();
     const { env = 'test', iiId, expiry, ntid, amount, currency = 'AED', operation = 'Pay', skipDm = true, confirmed } = await req.json();
+    await assertTokenUse(user, iiId);
     await assertEnvAllowed(user, env);
     if (!iiId || !ntid) throw new HttpError(400, 'Instrument identifier and the first CIT network transaction ID are both needed for an MIT.');
     if (!(Number(amount) > 0)) throw new HttpError(400, 'Amount must be above zero.');

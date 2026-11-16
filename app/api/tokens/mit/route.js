@@ -1,5 +1,5 @@
 import { assertProdPayment, assertConfirmed } from '@/lib/guard';
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertTokenUse } from '@/lib/auth';
 import { getConfig, baseUrlFrom } from '@/lib/config';
 import { db } from '@/lib/db';
 import { mitCharge, extractOrder, syncOrder } from '@/lib/geidea';
@@ -12,6 +12,7 @@ export async function POST(req) {
     const { env = 'test', tokenId, agreementId, agreementType = 'Unscheduled', amount, currency = 'AED', operation = 'Pay', confirmed } = await req.json();
     await assertEnvAllowed(user, env);
     if (!tokenId || !agreementId) throw new HttpError(400, 'Token ID and agreement ID are both needed for an MIT.');
+    await assertTokenUse(user, tokenId);
     if (!(Number(amount) > 0)) throw new HttpError(400, 'Amount must be above zero.');
     assertConfirmed(env, confirmed, 'A merchant-initiated charge');
     await assertProdPayment(env, amount);

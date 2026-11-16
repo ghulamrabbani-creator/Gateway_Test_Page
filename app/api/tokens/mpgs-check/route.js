@@ -1,7 +1,7 @@
 // Look a saved card up in the MPGS token repository. MPGS-route cards use their MPGS token; Geidea-route cards use the
 // value PGW gives MPGS (Geidea tokenId without dashes, upper case). schemeToken.provider (MDES / VTS) means a network
 // token exists behind the gateway token; on v80 MPGS shows the provider only, no status.
-import { requireUser, assertEnvAllowed, errorResponse, HttpError } from '@/lib/auth';
+import { requireUser, assertEnvAllowed, errorResponse, HttpError, assertOwnsCard } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getToken, pgwTokenValue, cardFromMpgs } from '@/lib/mpgs';
 import { getInstrumentIdentifier } from '@/lib/cybs';
@@ -12,6 +12,7 @@ export async function POST(req) {
     const user = requireUser();
     const { id } = await req.json();
     const { data: t } = await db().from('tokens').select('*').eq('id', Number(id)).maybeSingle();
+    assertOwnsCard(user, t);
     if (!t?.token_id) throw new HttpError(404, 'Saved card has no token yet.');
     await assertEnvAllowed(user, t.env);
     if (t.route === 'cybs') {

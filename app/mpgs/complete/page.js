@@ -10,5 +10,5 @@ export default async function Complete({ searchParams }) {
   const row = searchParams.ref && (await getOrderRow(searchParams.ref));
   if (!row || row.route !== 'mpgs') return <div className="card"><h1>Order not found</h1></div>;
   const m = row.options?.mpgs || {};
-  return <MpgsComplete refId={row.ref} amount={`${row.currency} ${Number(row.amount).toFixed(2)}`} auth={row.options?.auth} paid={!!m.payTxnId} initiate={m.initiate || null} authResult={m.authResult || null} />;
+  return <MpgsComplete refId={row.ref} amount={`${row.currency} ${Number(row.amount).toFixed(2)}`} auth={row.options?.auth} paid={!!m.payTxnId} initiate={m.initiate || null} authResult={m.authResult || null} operation={row.operation} />;
 }
