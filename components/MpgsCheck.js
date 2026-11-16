@@ -22,6 +22,9 @@ export default function MpgsCheck({ refId, geideaOrderId }) {
   const mo = res?.body;
   const found = res?.ok && mo?.id;
   const txns = found ? (Array.isArray(mo.transaction) ? mo.transaction : []) : [];
+  // R24: did a payment ever reach MPGS, and did MPGS's own risk screening say no?
+  const paid = txns.some((t) => ['PAYMENT', 'AUTHORIZATION', 'CAPTURE'].includes(t.transaction?.type));
+  const riskNo = txns.map((t) => t.risk || mo.risk).find((r) => r?.response?.gatewayCode && r.response.gatewayCode !== 'ACCEPTED');
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -31,6 +34,8 @@ export default function MpgsCheck({ refId, geideaOrderId }) {
       <p className="sub" style={{ margin: '6px 0 0' }}>MPGS order ID <span className="mono">{geideaOrderId || '—'}</span> (PGW uses the Geidea orderId). View only; the call is added to the request inspector below.</p>
       {res?.error && <div className="msg bad">{res.error}</div>}
       {res && !res.error && !found && <div className="msg warn">MPGS has no order with this ID (HTTP {res.status}). PGW probably sent this payment to another gateway (CyberSource), or under a different MPGS merchant ID than the one set in Admin.</div>}
+      {found && !paid && <div className="msg warn">MPGS holds only {txns.length ? txns.map((t) => t.transaction?.type).join(', ') : 'the order'} for this order: <b>no payment reached MPGS</b>. If PGW shows the payment failed, PGW stopped it itself before sending it on (not MPGS, not the issuer, and not Decision Manager, which runs only on CyberSource).</div>}
+      {found && riskNo && <div className="msg bad">MPGS risk assessment: <b>{riskNo.response.gatewayCode}</b>{riskNo.response.review?.decision ? ` · review ${riskNo.response.review.decision}` : ''}{Array.isArray(riskNo.response.rule) ? ` · rules ${riskNo.response.rule.map((r) => `${r.name || r.id}: ${r.recommendation || r.result || ''}`).join(', ')}` : ''}</div>}
       {found && (<>
         <div className="kv" style={{ marginTop: 12 }}>
           <div>MPGS status</div><div className="mono">{mo.status}{mo.authenticationStatus ? ` · ${mo.authenticationStatus}` : ''}</div>
