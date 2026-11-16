@@ -7,6 +7,7 @@ import Insights from '@/components/Insights';
 import Inspector from '@/components/Inspector';
 import OrderActions from '@/components/OrderActions';
 import { db } from '@/lib/db';
+import { fmtDT } from '@/lib/time';
 
 export default async function OrderPage({ params }) {
   const user = currentUser();
@@ -30,7 +31,7 @@ export default async function OrderPage({ params }) {
     <div>
       <p><Link href="/orders">← Orders</Link></p>
       <h1 className="mono">{row.ref}</h1>
-      <p className="sub">{row.currency} {Number(row.amount).toFixed(2)} · {row.operation === 'Pay' ? 'Sale' : 'Pre-authorization'} · {row.env} · created {new Date(row.created_at).toLocaleString()} by {row.created_by}</p>
+      <p className="sub">{row.currency} {Number(row.amount).toFixed(2)} · {row.operation === 'Pay' ? 'Sale' : 'Pre-authorization'} · {row.env} · created {fmtDT(row.created_at)} by {row.created_by}</p>
       {cybs && <div className="msg warn">CYBS direct order (MID {cy.merchantId || '—'}): it was sent straight to CyberSource, so PGW has no order for it and does not federate it to APEX.</div>}
       {mpgs && <div className="msg warn">MPGS direct order (MID {m.merchantId || '—'}, API v{m.version || '—'}): it was sent straight to MPGS, so PGW has no order for it and does not federate it to APEX.</div>}
       {row.options?.external && <div className="msg warn">Imported with Order lookup: this order was not created by this shop{row.options.importedFrom ? ` (its callback goes to ${row.options.importedFrom})` : ''}. Actions here still act on the real order.</div>}

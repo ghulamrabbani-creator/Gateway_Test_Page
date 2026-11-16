@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSettings } from '@/lib/clientState';
 import Insights from './Insights';
+import { fmtDT } from '@/lib/time';
 
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(async (r) => ({ ok: r.ok, j: await r.json().catch(() => ({})) }));
 
@@ -92,10 +93,10 @@ function SavedCard({ t, s, setS, onChanged, me }) {
             : !sc.found ? <span>Not found on {gwName}{sc.error ? ` (${sc.error})` : ''}. {isMpgs || isCybs ? '' : 'The card may have been processed on CYBS, or saved before PGW created MPGS tokens.'}</span>
             : sc.provider ? <span><b>Yes, {sc.provider === 'VTS' ? 'Visa (VTS)' : sc.provider === 'MDES' ? 'Mastercard (MDES)' : sc.provider}</b>{sc.status ? `, ${sc.status}` : ''}{sc.number ? ` · ${sc.number}` : ''}{sc.expiry ? ` exp ${sc.expiry}` : ''}</span>
             : <span>No network token yet. Provisioning is asynchronous; check again later (or NT is off for the repository).</span>}
-            {t.checked_at && <span className="muted" style={{ fontSize: 12 }}> · checked {new Date(t.checked_at).toLocaleString()}</span>}</dd>
+            {t.checked_at && <span className="muted" style={{ fontSize: 12 }}> · checked {fmtDT(t.checked_at)}</span>}</dd>
           <dt>Card</dt><dd>{[t.card?.funding && t.card.funding.toLowerCase(), t.card?.brand].filter(Boolean).join(' ') || 'Details arrive with the save result'}{t.card?.issuer ? `, ${t.card.issuer}` : ''}</dd>
-          <dt>Saved</dt><dd>{new Date(t.created_at).toLocaleString()} by {t.created_by}, {t.source === 'payment' ? 'during payment ' : 'without a payment '}{t.order_ref && <Link href={`/orders/${t.order_ref}`} className="mono">{t.order_ref}</Link>}</dd>
-          {t.last_used_at && (<><dt>Last used</dt><dd>{new Date(t.last_used_at).toLocaleString()} on <Link href={`/orders/${t.last_used_ref}`} className="mono">{t.last_used_ref}</Link></dd></>)}
+          <dt>Saved</dt><dd>{fmtDT(t.created_at)} by {t.created_by}, {t.source === 'payment' ? 'during payment ' : 'without a payment '}{t.order_ref && <Link href={`/orders/${t.order_ref}`} className="mono">{t.order_ref}</Link>}</dd>
+          {t.last_used_at && (<><dt>Last used</dt><dd>{fmtDT(t.last_used_at)} on <Link href={`/orders/${t.last_used_ref}`} className="mono">{t.last_used_ref}</Link></dd></>)}
         </dl>
         <div className="row">
           {canCit && t.usage !== 'MIT' && <button onClick={() => openTxn('cit')}>Pay with this card (CIT)</button>}

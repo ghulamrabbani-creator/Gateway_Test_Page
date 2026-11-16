@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { fmtDT, fmtD } from '@/lib/time';
 
 const ENVS = [['test', 'Test'], ['staging', 'Staging'], ['production', 'Production']];
 
@@ -29,11 +30,11 @@ function UsersPanel({ users, cardCount }) {
         <tbody>
           {users.map((u) => (
             <tr key={u.username}>
-              <td className="mono">{u.username}<div className="muted" style={{ fontSize: 11 }}>by {u.created_by || '—'}, {new Date(u.created_at).toLocaleDateString()}</div></td>
+              <td className="mono">{u.username}<div className="muted" style={{ fontSize: 11 }}>by {u.created_by || '—'}, {fmtD(u.created_at)}</div></td>
               <td><select value={u.role} disabled={!!busy} onChange={(e) => act('role', u.username, { role: e.target.value })}><option value="tester">Tester</option><option value="admin">Admin</option></select></td>
               <td><span className={`pill ${u.disabled ? 'bad' : 'good'}`}>{u.disabled ? 'Disabled' : 'Active'}</span></td>
               <td>{cardCount[u.username] || 0}</td>
-              <td className="muted">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never'}</td>
+              <td className="muted">{u.last_login_at ? fmtDT(u.last_login_at) : 'Never'}</td>
               <td><div className="row nowrap"><input type="password" placeholder="8+ characters" value={reset[u.username] || ''} onChange={(e) => setReset({ ...reset, [u.username]: e.target.value })} style={{ width: 150 }} /><button className="ghost small" disabled={!!busy || !(reset[u.username] || '').length} onClick={() => act('reset', u.username, { password: reset[u.username] })}>Set</button></div></td>
               <td><div className="row nowrap"><button className="ghost small" disabled={!!busy} onClick={() => act(u.disabled ? 'enable' : 'disable', u.username)}>{u.disabled ? 'Enable' : 'Disable'}</button><button className="ghost small" disabled={!!busy} onClick={() => act('delete', u.username)}>Delete</button></div></td>
             </tr>
@@ -89,14 +90,14 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl, users = 
               <label className="f">Merchant public key</label>
               <input value={c[e].publicKey} onChange={(ev) => setC({ ...c, [e]: { ...c[e], publicKey: ev.target.value } })} />
               <label className="f">API password</label>
-              <input type="password" placeholder={creds[e].passwordSet ? `Saved${creds[e].updatedAt ? `, updated ${new Date(creds[e].updatedAt).toLocaleDateString()}` : ''}. Leave blank to keep.` : 'Not set'} value={c[e].apiPassword} onChange={(ev) => setC({ ...c, [e]: { ...c[e], apiPassword: ev.target.value } })} />
-              <p className="muted" style={{ fontSize: 12 }}>API: {envs[e].apiBase}{creds[e].updatedAt && <><br />Updated {new Date(creds[e].updatedAt).toLocaleString()}</>}</p>
+              <input type="password" placeholder={creds[e].passwordSet ? `Saved${creds[e].updatedAt ? `, updated ${fmtD(creds[e].updatedAt)}` : ''}. Leave blank to keep.` : 'Not set'} value={c[e].apiPassword} onChange={(ev) => setC({ ...c, [e]: { ...c[e], apiPassword: ev.target.value } })} />
+              <p className="muted" style={{ fontSize: 12 }}>API: {envs[e].apiBase}{creds[e].updatedAt && <><br />Updated {fmtDT(creds[e].updatedAt)}</>}</p>
               <h3 style={{ borderTop: '1px solid var(--line)', paddingTop: 14 }}>MPGS direct</h3>
               {[['baseUrl', 'Gateway base URL', 'https://na-gateway.mastercard.com'], ['version', 'API version', '80'], ['merchantId', 'Merchant ID', '20100000101']].map(([k, l, ph]) => (
                 <div key={k}><label className="f">{l}</label><input className={k === 'baseUrl' ? '' : 'mono'} placeholder={ph} value={envs[e].mpgs?.[k] || ''} onChange={(ev) => setEnvs({ ...envs, [e]: { ...envs[e], mpgs: { ...(envs[e].mpgs || {}), [k]: ev.target.value } } })} /></div>
               ))}
               <label className="f">API (integration) password</label>
-              <input type="password" placeholder={creds[e].mpgsPasswordSet ? `Saved${creds[e].updatedAt ? `, updated ${new Date(creds[e].updatedAt).toLocaleDateString()}` : ''}. Leave blank to keep.` : 'Not set'} value={c[e].mpgsPassword} onChange={(ev) => setC({ ...c, [e]: { ...c[e], mpgsPassword: ev.target.value } })} />
+              <input type="password" placeholder={creds[e].mpgsPasswordSet ? `Saved${creds[e].updatedAt ? `, updated ${fmtD(creds[e].updatedAt)}` : ''}. Leave blank to keep.` : 'Not set'} value={c[e].mpgsPassword} onChange={(ev) => setC({ ...c, [e]: { ...c[e], mpgsPassword: ev.target.value } })} />
               <p className="muted" style={{ fontSize: 12 }}>Sent as Basic merchant.&lt;MID&gt;:&lt;password&gt;. UAE PGW runs on v80.</p>
               <h3 style={{ borderTop: '1px solid var(--line)', paddingTop: 14 }}>CYBS direct</h3>
               {[['host', 'REST host', 'api.cybersource.com'], ['merchantId', 'Merchant ID (v-c-merchant-id)', '20100000202']].map(([k, l, ph]) => (
@@ -105,7 +106,7 @@ export default function AdminForm({ cfg, creds, callbackUrl, returnUrl, users = 
               <label className="f">REST key ID (shared secret key)</label>
               <input className="mono" value={c[e].cybsKeyId} onChange={(ev) => setC({ ...c, [e]: { ...c[e], cybsKeyId: ev.target.value } })} />
               <label className="f">Shared secret (Base64)</label>
-              <input type="password" placeholder={creds[e].cybsSecretSet ? `Saved${creds[e].updatedAt ? `, updated ${new Date(creds[e].updatedAt).toLocaleDateString()}` : ''}. Leave blank to keep.` : 'Not set'} value={c[e].cybsSecret} onChange={(ev) => setC({ ...c, [e]: { ...c[e], cybsSecret: ev.target.value } })} />
+              <input type="password" placeholder={creds[e].cybsSecretSet ? `Saved${creds[e].updatedAt ? `, updated ${fmtD(creds[e].updatedAt)}` : ''}. Leave blank to keep.` : 'Not set'} value={c[e].cybsSecret} onChange={(ev) => setC({ ...c, [e]: { ...c[e], cybsSecret: ev.target.value } })} />
               <p className="muted" style={{ fontSize: 12 }}>HTTP Signature (HmacSHA256) over host, v-c-date, request-target, digest, v-c-merchant-id, same as the 11-Nov POC.</p>
             </div>
           ))}

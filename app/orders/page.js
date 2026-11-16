@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { fmtDT } from '@/lib/time';
 
 // Card brand from whichever gateway object the order holds (Geidea order, MPGS order/transaction, CYBS payment)
 function brandOf(o) {
@@ -53,7 +54,7 @@ export default async function Orders({ searchParams }) {
                 <td>{o.operation === 'Pay' ? 'Sale' : 'Pre-auth'}{o.options?.mit ? ' · MIT' : o.options?.tokenId ? ' · CIT token' : ''}{o.options?.saveCard && o.options.saveCard !== 'none' ? ` · save ${o.options.saveCard.toUpperCase()}` : ''}{o.options?.auth === 'moto' ? ' · MOTO' : ''}</td>
                 <td><span className={`pill ${o.env === 'production' ? 'warn' : ''}`}>{o.env}</span></td>
                 <td><span className={`pill ${tone(o.status)}`}>{o.detailed_status || o.status}</span></td>
-                <td className="muted">{new Date(o.created_at).toLocaleString()} · {o.created_by}</td>
+                <td className="muted">{fmtDT(o.created_at)} · {o.created_by}</td>
               </tr>
             ))}
           </tbody>

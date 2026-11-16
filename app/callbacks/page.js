@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { orderInsights } from '@/lib/insights';
 import { extractOrder } from '@/lib/geidea';
 import Insights from '@/components/Insights';
+import { fmtDT } from '@/lib/time';
 
 export default async function Callbacks({ searchParams }) {
   const user = currentUser();
@@ -24,7 +25,7 @@ export default async function Callbacks({ searchParams }) {
             <span>{c.currency} {c.amount !== null ? Number(c.amount).toFixed(2) : ''}</span>
             <span style={{ flex: 1 }} />
             {c.duplicate_count > 0 && <span className="pill warn">received {c.duplicate_count + 1}×</span>}
-            <span className="muted mono">{new Date(c.received_at).toLocaleString()}</span>
+            <span className="muted mono">{fmtDT(c.received_at)}</span>
           </summary>
           <div className="body">
             <Insights items={orderInsights(extractOrder(c.payload))} empty="Payload has no order object." />

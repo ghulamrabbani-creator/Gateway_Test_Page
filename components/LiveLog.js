@@ -4,6 +4,7 @@
 import Insights from './Insights';
 import CopyButton from './CopyButton';
 import { responseInsights } from '@/lib/insights';
+import { fmtT } from '@/lib/time';
 
 const waiting = (l) => l.status == null && !l.error && l.method !== 'BROWSER';
 const tone = (l) => (waiting(l) ? 'warn' : l.error || !l.status ? 'bad' : l.status >= 200 && l.status < 300 ? 'good' : 'bad');
@@ -51,6 +52,7 @@ export default function LiveLog({ live, stepMode, title = 'Live log' }) {
                   <span className="mono muted ll-url">{l.method} {l.url?.replace(/^https?:\/\/[^/]+/, '')}</span>
                   <span className="spacer" style={{ flex: 1 }} />
                   {verdict && verdict.value != null && String(verdict.value) !== String(l.status) && <span className={`pill ${verdict.tone}`}>{String(verdict.value).slice(0, 60)}</span>}
+                  <span className="muted mono" style={{ fontSize: 12 }} title="UAE time">{fmtT(l.created_at)}</span>
                   <span className="muted mono" style={{ fontSize: 12 }}>{w ? 'waiting' : `${l.duration_ms ?? 0} ms`}</span>
                 </summary>
                 <div className="body">

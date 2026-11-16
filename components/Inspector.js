@@ -2,6 +2,7 @@
 import Insights from './Insights';
 import CopyButton from './CopyButton';
 import { responseInsights } from '@/lib/insights';
+import { fmtDT } from '@/lib/time';
 
 const tone = (s, e) => (e || !s ? 'bad' : s >= 200 && s < 300 ? 'good' : 'bad');
 // R21: a request row is written before the gateway answers; status null + no error = still waiting (or never answered)
@@ -13,7 +14,7 @@ export default function Inspector({ logs, openFirst = false }) {
     const ins = responseInsights(l);
     const reqText = JSON.stringify({ method: l.method, url: l.url, headers: l.req_headers, body: l.req_body }, null, 2);
     const resText = l.error ? String(l.error) : JSON.stringify(l.res_body, null, 2);
-    const allText = `${l.action} · ${l.status ?? 'ERR'} · ${l.duration_ms} ms · ${l.created_at}\n\nRequest:\n${reqText}\n\nResponse:\n${resText}`;
+    const allText = `${l.action} · ${l.status ?? 'ERR'} · ${l.duration_ms} ms · ${fmtDT(l.created_at)}\n\nRequest:\n${reqText}\n\nResponse:\n${resText}`;
     const verdict = ins.find((x) => x.key === 'outcome' || x.key === 'code' || x.key === 'http' || x.key === 'net');
     return (
       <details className="call" key={l.id} open={openFirst && i === 0}>
@@ -24,7 +25,7 @@ export default function Inspector({ logs, openFirst = false }) {
           <span className="spacer" style={{ flex: 1 }} />
           {verdict && <span className={`pill ${verdict.tone}`}>{String(verdict.value).slice(0, 60)}</span>}
           <CopyButton text={allText} label="Copy all" />
-          <span className="muted" style={{ fontSize: 13 }}>{new Date(l.created_at).toLocaleString()}</span><span className="muted mono">{l.duration_ms} ms</span><span className="muted" style={{ fontSize: 13 }}>{l.created_by}</span>
+          <span className="muted" style={{ fontSize: 13 }}>{fmtDT(l.created_at)}</span><span className="muted mono">{l.duration_ms} ms</span><span className="muted" style={{ fontSize: 13 }}>{l.created_by}</span>
         </summary>
         <div className="body">
           <h3>Key insights</h3>
