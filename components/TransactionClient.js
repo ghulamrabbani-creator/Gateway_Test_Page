@@ -496,7 +496,7 @@ export default function TransactionClient({ pub, role, tokens }) {
         </section>
 
         <details className="more">
-          <summary>More options <span className="more-sum">{[s.currency, merchantRef ? 'own reference' : null, `${c.firstName} ${c.lastName}`, !direct && type !== 'mit' && type !== 'save' ? `${{ modal: 'Modal', dropin: 'Drop-in', redirect: 'Redirect' }[s.mode]} payment page` : null].filter(Boolean).join(', ')}</span></summary>
+          <summary>More options <span className="more-sum">{[s.currency, merchantRef ? 'own reference' : null, `${c.firstName} ${c.lastName}`, !direct && type !== 'mit' && type !== 'save' ? `${{ modal: 'Modal', dropin: 'Drop-in', redirect: 'Redirect' }[s.mode]} payment page` : null, !direct && s.callbackUrl ? 'custom callback URL' : null].filter(Boolean).join(', ')}</span></summary>
           <div className="more-body">
             <div className="opt-row">
               <Field label="Currency"><select value={s.currency} onChange={(e) => up('currency')(e.target.value)}>{ccys.map((x) => <option key={x}>{x}</option>)}</select></Field>
@@ -556,6 +556,10 @@ export default function TransactionClient({ pub, role, tokens }) {
               <div className="opt-row">
                 <Field label="Order items" hint="Sends one item for the full amount in order.items (Tabby / Tamara need items)."><Seg value={!!s.sendItems} onChange={up('sendItems')} options={[[false, 'Off'], [true, 'Send']]} /></Field>
                 <Field label="Fee program indicator" hint="processingInformation.feeProgramIndicator, e.g. AE3. Blank = not sent."><input className="mono" maxLength={3} placeholder="AE3" value={s.feeProgram || ''} onChange={(e) => up('feeProgram')(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} style={{ width: 120 }} /></Field>
+              </div>
+              <h3>Callback</h3>
+              <div className="opt-row">
+                <Field label="Callback URL" hint="Sent as callbackUrl in the session. Blank = this shop's /api/callback. Any other URL: callbacks go there, not to the shop's Callbacks page."><input className="mono" placeholder="https://gateway-test-page-drab.vercel.app/api/callback" value={s.callbackUrl || ''} onChange={(e) => up('callbackUrl')(e.target.value.trim())} style={{ minWidth: 420 }} /></Field>
               </div>
             </>)}
             {(type === 'mit' || type === 'save') && <p className="hint">{type === 'mit' ? 'No customer, reference or page options: the merchant charge is sent straight to the gateway.' : 'Geidea\'s save-card session takes no page options (body: currency and callback only), so the form uses its defaults.'}</p>}
