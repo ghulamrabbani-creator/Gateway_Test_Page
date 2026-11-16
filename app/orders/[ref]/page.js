@@ -6,6 +6,7 @@ import { orderInsights, mpgsInsights, cybsInsights } from '@/lib/insights';
 import Insights from '@/components/Insights';
 import Inspector from '@/components/Inspector';
 import OrderActions from '@/components/OrderActions';
+import MpgsCheck from '@/components/MpgsCheck';
 import { db } from '@/lib/db';
 import { fmtDT } from '@/lib/time';
 
@@ -54,6 +55,10 @@ export default async function OrderPage({ params }) {
             </>) : (<>
               <div>Geidea order ID</div><div className="mono">{row.geidea_order_id || '—'}</div>
               <div>Session ID</div><div className="mono">{row.session_id || '—'}</div>
+              {o?.paymentOperation && (<><div>PGW operation</div><div><span className="mono">{o.paymentOperation}</span>{o.paymentOperation !== row.operation ? <span className="muted"> (requested {row.operation})</span> : ''}</div></>)}
+              {Array.isArray(o?.transactions) && o.transactions.length > 0 && (<><div>PGW transactions</div><div className="mono" style={{ fontSize: 12 }}>{[...o.transactions].reverse().map((t) => `${t.type} ${t.status}`).join(' · ')}</div></>)}
+              {o && (<><div>Card on file</div><div>{o.cardOnFile ? 'Yes' : 'No'}{o.agreementId ? <> · agreement <span className="mono">{o.agreementId}</span> ({o.agreementType || '—'})</> : ' · no agreement on the PGW order'}{o.isPayWithToken ? ' · paid with a saved token' : ''}</div></>)}
+              {o?.parentOrderId && (<><div>Parent order (PGW)</div><div className="mono">{o.parentOrderId}</div></>)}
             </>)}
             <div>Authorized</div><div>{row.currency} {authorized.toFixed(2)}</div>
             <div>Captured</div><div>{row.currency} {captured.toFixed(2)}</div>
@@ -68,6 +73,7 @@ export default async function OrderPage({ params }) {
           <OrderActions env={row.env} gateway={cybs ? 'CYBS' : mpgs ? 'MPGS' : 'Geidea'} refId={row.ref} currency={row.currency} detailed={row.detailed_status} authorized={authorized} captured={captured} refunded={refunded} amount={Number(row.amount)} />
         </div>
       </div>
+      {!mpgs && !cybs && row.geidea_order_id && <MpgsCheck refId={row.ref} geideaOrderId={row.geidea_order_id} />}
       <div className="card">
         <h2>Key insights</h2>
         <Insights items={cybs ? cybsInsights(o) : mpgs ? mpgsInsights(o) : orderInsights(o)} empty={`Fetch the order from ${cybs ? 'CYBS' : mpgs ? 'MPGS' : 'Geidea'} to see insights.`} />
