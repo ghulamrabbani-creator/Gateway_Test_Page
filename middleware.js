@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 // Cheap gate: pages need the session cookie. Signature is verified on the server in each page/route.
-const OPEN = ['/login', '/api/auth/login', '/api/callback', '/api/mpgs/3ds-return', '/api/cybs/3ds-return', '/_next', '/favicon'];
+const OPEN = ['/login', '/api/keepalive', '/api/auth/login', '/api/callback', '/api/mpgs/3ds-return', '/api/cybs/3ds-return', '/_next', '/favicon'];
 
 export function middleware(req) {
   const { pathname } = req.nextUrl;
