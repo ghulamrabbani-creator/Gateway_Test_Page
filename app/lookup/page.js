@@ -7,6 +7,8 @@ import CopyButton from '@/components/CopyButton';
 const GW = {
   geidea: { label: 'Geidea order', field: 'Geidea order ID', ph: '1c65a2c8-12c4-4098-f3cd-08df31653829', note: "Imports the order into this shop so you can capture, void or refund it. Uses the environment's Geidea credentials, so the order must belong to that MID." },
   mpgs: { label: 'MPGS order', field: 'MPGS order ID', ph: 'Geidea orderId for a PGW order, or MP-… for a direct one', note: 'View only, straight from MPGS: shows what PGW (or the shop) actually sent, e.g. sourceOfFunds.type SCHEME_TOKEN vs CARD. For a PGW order the MPGS order ID is the Geidea orderId. Uses the MPGS merchant ID set for this environment.' },
+  'mpgs-token': { label: 'MPGS token', field: 'Geidea token ID or MPGS token', ph: '0a151fc6-8ce0-4a76-7f84-08df365be30a or 0A151FC68CE04A767F8408DF365BE30A', note: 'MPGS Retrieve Token (GET /token/{id}). A Geidea token ID is turned into the MPGS token PGW uses (no dashes, upper case). Shows status, repository and schemeToken (MDES / VTS = network token). MPGS only searches the repository linked to the MID right now, so "Token not found" can mean the token sits in another repository.' },
+  'cybs-ii': { label: 'CYBS instrument identifier', field: 'CYBS instrument identifier', ph: '7042250006244998240', note: 'CYBS TMS Retrieve Instrument Identifier (GET /tms/v1/instrumentidentifiers/{id}). tokenizedCard holds the network token (state ACTIVE / SUSPENDED / DELETED). Uses the CYBS merchant ID set for this environment.' },
   cybs: { label: 'CYBS transaction', field: 'CYBS transaction / payment ID', ph: '7943857634526797404891', note: 'View only, from CYBS Transaction Search (/tss/v2/transactions). Shows the token BIN, paymentSolution 014/015 and the network transaction ID. Uses the CYBS merchant ID set for this environment.' },
 };
 
@@ -34,8 +36,8 @@ export default function Lookup() {
   const raw = res ? JSON.stringify(res.body ?? res.error, null, 2) : '';
   return (
     <div>
-      <h1>Order lookup</h1>
-      <p className="sub">Fetch an order by ID: a Geidea order to manage it here, or the same payment as MPGS or CYBS sees it.</p>
+      <h1>Lookup</h1>
+      <p className="sub">Fetch an order by ID (a Geidea order to manage it here, or the same payment as MPGS or CYBS sees it), or look a token up on MPGS or CYBS.</p>
       <form className="card" onSubmit={go} style={{ maxWidth: 720 }}>
         <label className="f">Look up</label>
         <div className="seg">{Object.entries(GW).map(([k, v]) => <button type="button" key={k} className={gw === k ? 'on' : ''} onClick={() => { setGw(k); setRes(null); setErr(null); }}>{v.label}</button>)}</div>
@@ -55,7 +57,7 @@ export default function Lookup() {
         <div className="card">
           <h2>Key insights</h2>
           <Insights items={res.insights} />
-          <div className="row" style={{ justifyContent: 'space-between', marginTop: 14 }}><h3 style={{ margin: 0 }}>Response (HTTP {res.status})</h3><CopyButton text={raw} /></div>
+          <div className="row" style={{ justifyContent: 'space-between', marginTop: 14 }}><h3 style={{ margin: 0 }}>Response (HTTP {res.status}){res.queried ? <span className="muted mono" style={{ fontSize: 12 }}> · queried {res.queried}</span> : null}</h3><CopyButton text={raw} /></div>
           <pre className="json">{raw}</pre>
         </div>
       )}

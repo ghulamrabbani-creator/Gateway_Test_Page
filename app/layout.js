@@ -23,7 +23,7 @@ export default function RootLayout({ children }) {
               <Link href="/">New transaction</Link>
               <Link href="/cards">Saved cards</Link>
               <Link href="/orders">Orders</Link>
-              <Link href="/lookup">Order lookup</Link>
+              <Link href="/lookup">Lookup</Link>
               <Link href="/callbacks">Callbacks</Link>
               {user.role === 'admin' && <Link href="/admin">Admin</Link>}
               <span className="spacer" />
