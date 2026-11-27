@@ -28,7 +28,7 @@ function CardFace({ t }) {
   );
 }
 
-function SavedCard({ t, s, setS, onChanged, me }) {
+function SavedCard({ t, s, setS, onChanged, me, repeatOf }) {
   const router = useRouter();
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState(null);
@@ -37,6 +37,8 @@ function SavedCard({ t, s, setS, onChanged, me }) {
   const isCybs = t.route === 'cybs';
   const gwName = isCybs ? 'CYBS' : 'MPGS';
   const sc = t.scheme;
+  // PGW keeps the MPGS token under the Geidea token ID without dashes, upper case
+  const mpgsFromGeidea = !isMpgs && !isCybs && t.token_id ? t.token_id.replace(/-/g, '').toUpperCase() : '';
   const own = t.created_by === me;
   // Payments start on the Transaction page, whose pickers hold only your own cards
   const canMit = own && t.status === 'ACTIVE' && t.token_id && t.agreement_id;
@@ -79,15 +81,17 @@ function SavedCard({ t, s, setS, onChanged, me }) {
       <CardFace t={t} />
       <div className="sc-body">
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <div className="row"><span className={`pill ${tone}`}>{st}</span>{!own && <span className="pill owner">Belongs to {t.created_by || 'nobody'}</span>}<span className="muted" style={{ fontSize: 13 }}>{t.env === 'production' ? 'Production' : t.env === 'staging' ? 'Staging' : 'Test'} · {isCybs ? 'CYBS direct' : isMpgs ? 'MPGS direct' : 'Geidea PGW'}</span></div>
+          <div className="row"><span className={`pill ${tone}`}>{st}</span>{repeatOf && <span className="pill warn">Repeat save · same token</span>}{!own && <span className="pill owner">Belongs to {t.created_by || 'nobody'}</span>}<span className="muted" style={{ fontSize: 13 }}>{t.env === 'production' ? 'Production' : t.env === 'staging' ? 'Staging' : 'Test'} · {isCybs ? 'CYBS direct' : isMpgs ? 'MPGS direct' : 'Geidea PGW'}</span></div>
           <button className="ghost small" onClick={remove}>Remove</button>
         </div>
         {t.note && <p className="sc-note">{t.note}</p>}
+        {repeatOf && <p className="sc-note">The same card was saved again and {isCybs ? 'CYBS' : isMpgs ? 'MPGS' : 'PGW'} returned the token it already had (first saved {fmtDT(repeatOf.created_at)} on <Link href={`/orders/${repeatOf.order_ref}`} className="mono">{repeatOf.order_ref}</Link>). No new token was created; this entry only records this save{t.agreement_id ? ' and its MIT agreement' : ''}.</p>}
         <dl className="sc-facts">
-          <dt>Token ID</dt><dd className="mono">{t.token_id || 'Not received yet'}</dd>
+          <dt>{isCybs ? 'CYBS instrument identifier' : isMpgs ? 'MPGS token' : 'Geidea token'}</dt><dd className="mono">{t.token_id || 'Not received yet'}</dd>
+          {mpgsFromGeidea && (<><dt>MPGS token</dt><dd><span className="mono">{mpgsFromGeidea}</span> {sc?.found ? <span className="muted">(found on MPGS)</span> : sc && !sc.found ? <span className="muted">(not on MPGS: the card may have gone through CYBS)</span> : <span className="muted">(expected value if the card went through MPGS; confirm with "Check network token on MPGS")</span>}</dd></>)}
           <dt>Can be used for</dt><dd>{t.usage === 'CIT' ? 'Customer payments (CIT): the customer enters only CVV / OTP' : t.usage === 'MIT' ? 'Merchant charges (MIT) without the customer' : 'Customer payments (CIT) and merchant charges (MIT)'}</dd>
           {t.agreement_id && (<><dt>{isCybs ? 'First CIT network txn ID' : 'MIT agreement'}</dt><dd><span className="mono">{t.agreement_id}</span>{isCybs ? ' (sent as previousTransactionId on MITs)' : ` (${t.agreement_type || 'Unscheduled'})`}</dd></>)}
-          <dt>Token type</dt><dd>{isCybs ? 'CYBS TMS instrument identifier (saved through CYBS direct, not known to PGW)' : isMpgs ? 'MPGS gateway token (saved through MPGS direct, not known to PGW)' : 'Geidea gateway token'}</dd>
+          <dt>Saved through</dt><dd>{isCybs ? 'CYBS direct (not known to PGW)' : isMpgs ? 'MPGS direct (not known to PGW)' : 'Geidea PGW'}</dd>
           <dt>Token repository</dt><dd>{isCybs ? 'CYBS TMS' : sc?.repositoryId ? <span className="mono">{sc.repositoryId}</span> : sc && !sc.found ? <span className="muted">Not found on MPGS</span> : <span className="muted">Not known yet: use "Check network token on MPGS"</span>}</dd>
           <dt>Network token</dt><dd>{!sc ? <span className="muted">Not checked on {gwName} yet{isMpgs || isCybs ? '' : '. PGW keeps an MPGS token under the Geidea token ID without dashes, if the card went through MPGS.'}</span>
             : !sc.found ? <span>Not found on {gwName}{sc.error ? ` (${sc.error})` : ''}. {isMpgs || isCybs ? '' : 'The card may have been processed on CYBS, or saved before PGW created MPGS tokens.'}</span>
@@ -125,6 +129,13 @@ export default function CardsClient({ tokens, pub, role, me, all }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = tokens.filter((t) => t.status === 'ACTIVE');
+  // Repeat saves: the gateway returned a token an earlier save already holds (same route, env and token)
+  const firstSave = {};
+  [...tokens].filter((t) => t.token_id).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).forEach((t) => {
+    const k = `${t.route || 'geidea'}|${t.env}|${t.token_id}`;
+    if (!firstSave[k]) firstSave[k] = t;
+  });
+  const repeatOf = (t) => { const f = t.token_id && firstSave[`${t.route || 'geidea'}|${t.env}|${t.token_id}`]; return f && f.id !== t.id ? f : null; };
   const other = tokens.filter((t) => t.status !== 'ACTIVE');
   return (
     <div>
@@ -141,9 +152,9 @@ export default function CardsClient({ tokens, pub, role, me, all }) {
 
       <div>
         {!tokens.length && <div className="card"><p style={{ margin: 0 }}>No saved cards yet for this user. On <Link href="/">New transaction</Link>, run a Sale with Save the card on, or pick Save card.</p></div>}
-        {active.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} me={me} onChanged={() => router.refresh()} />)}
+        {active.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} me={me} repeatOf={repeatOf(t)} onChanged={() => router.refresh()} />)}
         {other.length > 0 && <h2 style={{ marginTop: 24 }}>Not ready</h2>}
-        {other.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} me={me} onChanged={() => router.refresh()} />)}
+        {other.map((t) => <SavedCard key={t.id} t={t} s={s} setS={setS} me={me} repeatOf={repeatOf(t)} onChanged={() => router.refresh()} />)}
       </div>
     </div>
   );
